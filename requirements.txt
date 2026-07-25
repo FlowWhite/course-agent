@@ -1,0 +1,11 @@
+openai
+openai-agents
+pydantic
+fastapi
+uvicorn[standard]
+psycopg[binary]
+pyjwt
+pwdlib[argon2]
+python-multipart
+pypdf
+python-docx

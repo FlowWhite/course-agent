@@ -1,0 +1,42 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+.secrets/
+
+# Runtime data. Keep only the directory placeholder required by Docker builds.
+/data/*
+!/data/.gitkeep
+/logs/
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# Frontend build and dependency artifacts
+/web/node_modules/
+/web/dist/
+/web/.vite/
+
+# Local tooling and editor state
+.playwright-mcp/
+tmp/
+_knowledge_base/
+.idea/
+.vscode/
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
