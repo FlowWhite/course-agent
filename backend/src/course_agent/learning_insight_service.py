@@ -50,7 +50,7 @@ def create_learning_plan_data(
     draft: TaskPlanDraft,
     sources: list[PlanSource],
 ) -> LearningPlanRecord:
-    task = get_task_detail_data(task_id)
+    task = get_task_detail_data(user_id=user_id, task_id=task_id)
     if task is None:
         raise ValueError("没有找到要生成计划的任务。")
     if task.status.value == "done":
@@ -440,8 +440,8 @@ def list_task_risks_data(
     user_id: int,
     course_id: str | None = None,
 ) -> list[TaskRiskRecord]:
-    parameters: list[Any] = []
-    where_clause = "WHERE t.status = 'todo'"
+    parameters: list[Any] = [user_id]
+    where_clause = "WHERE t.user_id = %s AND t.status = 'todo'"
     if course_id and course_id.strip():
         where_clause += " AND t.course_id = %s"
         parameters.append(course_id.strip())
@@ -460,6 +460,7 @@ def list_task_risks_data(
                 FROM tasks AS t
                 JOIN courses AS c
                     ON c.id = t.course_id
+                    AND c.user_id = t.user_id
                 {where_clause}
                 ORDER BY t.deadline ASC
                 """,
@@ -478,6 +479,7 @@ def list_task_risks_data(
                 FROM learning_plans AS p
                 JOIN tasks AS t
                     ON t.id = p.task_id
+                    AND t.user_id = p.user_id
                 LEFT JOIN learning_plan_steps AS s
                     ON s.plan_id = p.id
                 WHERE p.user_id = %s AND p.status = 'active'

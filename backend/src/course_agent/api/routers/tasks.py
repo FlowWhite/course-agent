@@ -32,8 +32,9 @@ def list_tasks_api(
     current_user: dict = Depends(get_current_user),
 ) -> dict:
     """List tasks filtered by course and completion status."""
+    user_id = int(current_user["id"])
     try:
-        tasks = list_tasks_data(course=course, status=status)
+        tasks = list_tasks_data(user_id=user_id, course=course, status=status)
         return ToolResponse(
             success=True,
             data=[task.model_dump(mode="json") for task in tasks],
@@ -50,8 +51,9 @@ def get_task_detail_api(
     current_user: dict = Depends(get_current_user),
 ) -> dict:
     """Return task detail by task ID."""
+    user_id = int(current_user["id"])
     try:
-        task = get_task_detail_data(task_id)
+        task = get_task_detail_data(user_id=user_id, task_id=task_id)
         if task is None:
             return ToolResponse(
                 success=False,
@@ -71,8 +73,10 @@ def create_task_api(
     current_user: dict = Depends(get_current_user),
 ) -> dict:
     """Create a task."""
+    user_id = int(current_user["id"])
     try:
         task = create_task_data(
+            user_id=user_id,
             task_id=request.task_id,
             course=request.course,
             title=request.title,
@@ -96,8 +100,10 @@ def update_task_api(
     current_user: dict = Depends(get_current_user),
 ) -> dict:
     """Update ordinary task fields."""
+    user_id = int(current_user["id"])
     try:
         task = update_task_data(
+            user_id=user_id,
             task_id=task_id,
             title=request.title,
             deadline=request.deadline.isoformat() if request.deadline is not None else None,
@@ -120,8 +126,13 @@ def update_task_status_api(
     current_user: dict = Depends(get_current_user),
 ) -> dict:
     """Update task completion status."""
+    user_id = int(current_user["id"])
     try:
-        task = update_task_status_data(task_id=task_id, status=request.status.value)
+        task = update_task_status_data(
+            user_id=user_id,
+            task_id=task_id,
+            status=request.status.value,
+        )
         return ToolResponse(success=True, data=task.model_dump(mode="json")).model_dump(
             mode="json"
         )
@@ -138,6 +149,7 @@ def delete_task_api(
     current_user: dict = Depends(get_current_user),
 ) -> dict:
     """Delete a task after explicit user confirmation."""
+    user_id = int(current_user["id"])
     normalized_task_id = task_id.strip()
     expected_confirmation = f"确认删除任务 {normalized_task_id}"
     if request.confirmation != expected_confirmation:
@@ -146,7 +158,7 @@ def delete_task_api(
             error=f"删除操作未确认。请准确输入：{expected_confirmation}",
         ).model_dump(mode="json")
     try:
-        task = delete_task_data(normalized_task_id)
+        task = delete_task_data(user_id=user_id, task_id=normalized_task_id)
         return ToolResponse(
             success=True,
             data={
@@ -167,7 +179,7 @@ def create_task_plan_api(
 ) -> dict:
     """Create a saved, awaiting-confirmation learning-plan draft."""
     user_id = int(current_user["id"])
-    task = get_task_detail_data(task_id)
+    task = get_task_detail_data(user_id=user_id, task_id=task_id)
     if task is None:
         raise HTTPException(status_code=404, detail="没有找到要拆解的任务。")
     try:

@@ -39,7 +39,7 @@ def backup_postgres_data() -> Path:
         with conn.cursor() as cursor:
             cursor.execute(
                 """
-                SELECT id, name, teacher
+                SELECT id, user_id, name, teacher
                 FROM courses
                 ORDER BY id
                 """
@@ -50,6 +50,7 @@ def backup_postgres_data() -> Path:
                 """
                 SELECT
                     id,
+                    user_id,
                     course_id,
                     title,
                     deadline,
@@ -80,7 +81,7 @@ def backup_postgres_data() -> Path:
 
     return backup_path
 
-def list_courses_data() -> list[CourseSummary]:
+def list_courses_data(user_id: int) -> list[CourseSummary]:
     with _get_connection() as conn:
         with conn.cursor() as cursor:
             cursor.execute(
@@ -93,13 +94,16 @@ def list_courses_data() -> list[CourseSummary]:
                 FROM courses AS c
                 LEFT JOIN tasks AS t
                     ON c.id = t.course_id
+                    AND t.user_id = c.user_id
                     AND t.status = 'todo'
+                WHERE c.user_id = %s
                 GROUP BY
                     c.id,
                     c.name,
                     c.teacher
                 ORDER BY c.name
-                """
+                """,
+                (user_id,),
             )
 
             rows = cursor.fetchall()
@@ -111,6 +115,7 @@ def list_courses_data() -> list[CourseSummary]:
 
 
 def list_tasks_data(
+    user_id: int,
     course: str,
     status: str,
 ) -> list[TaskRecord]:
@@ -120,8 +125,8 @@ def list_tasks_data(
     if normalized_status not in {"all", "todo", "done"}:
         raise ValueError("status 只能是 all、todo 或 done。")
 
-    conditions: list[str] = []
-    parameters: list[Any] = []
+    conditions: list[str] = ["t.user_id = %s"]
+    parameters: list[Any] = [user_id]
 
     if normalized_course:
         conditions.append(
@@ -161,6 +166,7 @@ def list_tasks_data(
                 FROM tasks AS t
                 JOIN courses AS c
                     ON t.course_id = c.id
+                    AND t.user_id = c.user_id
                 {where_clause}
                 ORDER BY t.deadline ASC
                 """,
@@ -176,6 +182,7 @@ def list_tasks_data(
 
 
 def get_task_detail_data(
+    user_id: int,
     task_id: str,
 ) -> TaskRecord | None:
     normalized_task_id = task_id.strip()
@@ -196,9 +203,10 @@ def get_task_detail_data(
                 FROM tasks AS t
                 JOIN courses AS c
                     ON t.course_id = c.id
-                WHERE t.id = %s
+                    AND t.user_id = c.user_id
+                WHERE t.user_id = %s AND t.id = %s
                 """,
-                (normalized_task_id,),
+                (user_id, normalized_task_id),
             )
 
             row = cursor.fetchone()
@@ -209,6 +217,7 @@ def get_task_detail_data(
     return TaskRecord.model_validate(row)
 def _resolve_course_id(
     cursor,
+    user_id: int,
     course: str,
 ) -> str:
     normalized_course = course.strip()
@@ -220,9 +229,11 @@ def _resolve_course_id(
         """
         SELECT id, name
         FROM courses
-        WHERE id = %s OR name = %s
+        WHERE user_id = %s
+          AND (id = %s OR name = %s)
         """,
         (
+            user_id,
             normalized_course,
             normalized_course,
         ),
@@ -245,6 +256,7 @@ def _resolve_course_id(
 
 def _fetch_task_by_cursor(
     cursor,
+    user_id: int,
     task_id: str,
 ) -> TaskRecord | None:
     cursor.execute(
@@ -261,9 +273,10 @@ def _fetch_task_by_cursor(
         FROM tasks AS t
         JOIN courses AS c
             ON t.course_id = c.id
-        WHERE t.id = %s
+            AND t.user_id = c.user_id
+        WHERE t.user_id = %s AND t.id = %s
         """,
-        (task_id,),
+        (user_id, task_id),
     )
 
     row = cursor.fetchone()
@@ -275,6 +288,7 @@ def _fetch_task_by_cursor(
 
 
 def create_task_data(
+    user_id: int,
     task_id: str,
     course: str,
     title: str,
@@ -286,6 +300,7 @@ def create_task_data(
         with conn.cursor() as cursor:
             course_id = _resolve_course_id(
                 cursor,
+                user_id,
                 course,
             )
 
@@ -312,6 +327,7 @@ def create_task_data(
                 """
                 INSERT INTO tasks (
                     id,
+                    user_id,
                     course_id,
                     title,
                     deadline,
@@ -319,10 +335,11 @@ def create_task_data(
                     priority,
                     description
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                 """,
                 (
                     task.id,
+                    user_id,
                     task.course_id,
                     task.title,
                     task.deadline,
@@ -334,6 +351,7 @@ def create_task_data(
 
             result = _fetch_task_by_cursor(
                 cursor,
+                user_id,
                 task.id,
             )
 
@@ -344,6 +362,7 @@ def create_task_data(
 
             return result
 def update_task_data(
+    user_id: int,
     task_id: str,
     title: str | None = None,
     deadline: str | None = None,
@@ -379,13 +398,13 @@ def update_task_data(
         for field_name in field_names
     ]
 
-    values.append(normalized_task_id)
+    values.extend([user_id, normalized_task_id])
 
     with _get_connection() as conn:
         with conn.cursor() as cursor:
             cursor.execute(
-                "SELECT 1 FROM tasks WHERE id = %s",
-                (normalized_task_id,),
+                "SELECT 1 FROM tasks WHERE user_id = %s AND id = %s",
+                (user_id, normalized_task_id),
             )
 
             if cursor.fetchone() is None:
@@ -397,13 +416,14 @@ def update_task_data(
                 f"""
                 UPDATE tasks
                 SET {set_clause}
-                WHERE id = %s
+                WHERE user_id = %s AND id = %s
                 """,
                 values,
             )
 
             result = _fetch_task_by_cursor(
                 cursor,
+                user_id,
                 normalized_task_id,
             )
 
@@ -414,6 +434,7 @@ def update_task_data(
 
             return result
 def update_task_status_data(
+    user_id: int,
     task_id: str,
     status: str,
 ) -> TaskRecord:
@@ -429,8 +450,8 @@ def update_task_status_data(
     with _get_connection() as conn:
         with conn.cursor() as cursor:
             cursor.execute(
-                "SELECT 1 FROM tasks WHERE id = %s",
-                (normalized_task_id,),
+                "SELECT 1 FROM tasks WHERE user_id = %s AND id = %s",
+                (user_id, normalized_task_id),
             )
 
             if cursor.fetchone() is None:
@@ -442,16 +463,18 @@ def update_task_status_data(
                 """
                 UPDATE tasks
                 SET status = %s
-                WHERE id = %s
+                WHERE user_id = %s AND id = %s
                 """,
                 (
                     status_update.status.value,
+                    user_id,
                     normalized_task_id,
                 ),
             )
 
             result = _fetch_task_by_cursor(
                 cursor,
+                user_id,
                 normalized_task_id,
             )
 
@@ -462,6 +485,7 @@ def update_task_status_data(
 
             return result
 def delete_task_data(
+    user_id: int,
     task_id: str,
 ) -> TaskRecord:
     normalized_task_id = task_id.strip()
@@ -473,6 +497,7 @@ def delete_task_data(
         with conn.cursor() as cursor:
             task = _fetch_task_by_cursor(
                 cursor,
+                user_id,
                 normalized_task_id,
             )
 
@@ -484,9 +509,9 @@ def delete_task_data(
             cursor.execute(
                 """
                 DELETE FROM tasks
-                WHERE id = %s
+                WHERE user_id = %s AND id = %s
                 """,
-                (normalized_task_id,),
+                (user_id, normalized_task_id),
             )
 
             if cursor.rowcount != 1:

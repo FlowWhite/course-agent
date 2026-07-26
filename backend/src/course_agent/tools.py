@@ -51,7 +51,10 @@ def _current_agent_course_id() -> str | None:
 
 
 def _get_scoped_task_or_raise(task_id: str):
-    task = get_task_detail_data(task_id)
+    task = get_task_detail_data(
+        user_id=_current_document_user_id(),
+        task_id=task_id,
+    )
     if task is None:
         raise ValueError(f"没有找到任务：{task_id}")
 
@@ -123,7 +126,7 @@ def list_courses() -> str:
     logger.info("调用工具 list_courses")
 
     try:
-        courses = list_courses_data()
+        courses = list_courses_data(user_id=_current_document_user_id())
 
         return success_response(
             [
@@ -157,8 +160,9 @@ def list_tasks(
 
     try:
         tasks = list_tasks_data(
-            _current_agent_course_id() or course,
-            status,
+            user_id=_current_document_user_id(),
+            course=_current_agent_course_id() or course,
+            status=status,
         )
 
         return success_response(
@@ -228,6 +232,7 @@ def create_task(
 
     try:
         task = create_task_data(
+            user_id=_current_document_user_id(),
             task_id=task_id,
             course=_current_agent_course_id() or course,
             title=title,
@@ -275,6 +280,7 @@ def update_task(
     try:
         _get_scoped_task_or_raise(task_id)
         task = update_task_data(
+            user_id=_current_document_user_id(),
             task_id=task_id,
             title=title,
             deadline=deadline,
@@ -316,6 +322,7 @@ def update_task_status(
     try:
         _get_scoped_task_or_raise(task_id)
         task = update_task_status_data(
+            user_id=_current_document_user_id(),
             task_id=task_id,
             status=status,
         )
@@ -367,7 +374,8 @@ def delete_task(
     try:
         _get_scoped_task_or_raise(normalized_task_id)
         task = delete_task_data(
-            normalized_task_id,
+            user_id=_current_document_user_id(),
+            task_id=normalized_task_id,
         )
 
         return success_response(
