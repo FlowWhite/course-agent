@@ -20,7 +20,7 @@ const {
   risksLoading, risksError, taskPlan, plansLoading, planSaving, planError,
   selectedCourse, selectedTask, filteredTasks, todoCount, doneCount, formTitle,
   deleteConfirmationText, activateCourseAgentChat, login, switchAuthMode,
-  register, logout, selectCourse, loadCourseFiles, uploadCourseFile,
+  register, logout, selectCourse, loadTaskDetail, loadCourseFiles, uploadCourseFile,
   deleteCourseFile, loadRisks, generateTaskPlan, changePlanState,
   updateTaskStatus, openCreate, openEdit, closeForm, submitTaskForm,
   openDeleteDialog, closeDeleteDialog, confirmDelete, toggleChat, sendChat,
