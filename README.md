@@ -44,8 +44,14 @@ flowchart LR
 ```text
 .
 ├─ backend/
-│  ├─ src/course_agent/         # 可安装的 FastAPI、Agent、服务与模型包
-│  └─ tests/                    # 后端基础测试
+│  ├─ src/course_agent/
+│  │  ├─ main.py                # FastAPI 装配、中间件与生命周期
+│  │  ├─ api/
+│  │  │  ├─ dependencies.py     # JWT 鉴权等共享依赖
+│  │  │  ├─ schemas.py          # HTTP 请求模型
+│  │  │  └─ routers/            # 认证、任务、资料、计划、风险与 Agent 路由
+│  │  └─ ...                    # Agent、服务、数据库与领域模型
+│  └─ tests/                    # 后端与 API 契约测试
 ├─ server.py / app.py           # 旧启动命令的兼容入口
 ├─ postgres/                    # PostgreSQL 初始化 SQL
 ├─ scripts/                     # Docker 启动、迁移与历史维护脚本
