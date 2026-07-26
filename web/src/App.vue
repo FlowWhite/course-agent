@@ -1,6 +1,8 @@
 <script setup>
 import AuthScreen from "./components/AuthScreen.vue"
 import CourseSidebar from "./components/CourseSidebar.vue"
+import TaskDetailPanel from "./components/TaskDetailPanel.vue"
+import TaskList from "./components/TaskList.vue"
 import WorkspaceTopbar from "./components/WorkspaceTopbar.vue"
 import { useCourseWorkspace } from "./composables/useCourseWorkspace"
 
@@ -90,286 +92,37 @@ const {
       </div>
 
       <section class="workspace-grid">
-        <div class="task-column">
-          <div class="section-heading">
-            <div>
-              <span class="eyebrow">任务清单</span>
-              <h2>
-                {{ selectedCourse?.name || "选择一门课程" }}
-              </h2>
-            </div>
+        <TaskList
+          :selected-course="selectedCourse"
+          :tasks="tasks"
+          :filtered-tasks="filteredTasks"
+          :selected-task-id="selectedTaskId"
+          v-model:task-filter="taskFilter"
+          :done-count="doneCount"
+          :tasks-loading="tasksLoading"
+          :task-error="taskError"
+          :status-label="statusLabel"
+          :priority-label="priorityLabel"
+          :priority-class="priorityClass"
+          @select="loadTaskDetail"
+          @create="openCreate"
+        />
 
-            <div class="task-summary">
-              <span>{{ tasks.length }} 项任务</span>
-              <span class="summary-divider"></span>
-              <span>{{ doneCount }} 项已完成</span>
-            </div>
-          </div>
-
-          <div class="filter-bar" role="tablist">
-            <button
-              v-for="filter in [
-                { value: 'all', label: '全部' },
-                { value: 'todo', label: '待完成' },
-                { value: 'done', label: '已完成' },
-              ]"
-              :key="filter.value"
-              :class="[
-                'filter-button',
-                { active: taskFilter === filter.value },
-              ]"
-              type="button"
-              role="tab"
-              :aria-selected="taskFilter === filter.value"
-              @click="taskFilter = filter.value"
-            >
-              {{ filter.label }}
-            </button>
-          </div>
-
-          <p v-if="tasksLoading" class="state-message">
-            正在加载任务……
-          </p>
-
-          <p v-else-if="taskError" class="state-message error-text">
-            {{ taskError }}
-          </p>
-
-          <div
-            v-else-if="filteredTasks.length"
-            class="task-list"
-          >
-            <article
-              v-for="task in filteredTasks"
-              :key="task.id"
-              :class="[
-                'task-card',
-                {
-                  selected: task.id === selectedTaskId,
-                },
-              ]"
-              role="button"
-              tabindex="0"
-              @click="loadTaskDetail(task.id)"
-              @keydown.enter="loadTaskDetail(task.id)"
-              @keydown.space.prevent="loadTaskDetail(task.id)"
-            >
-              <div class="task-card-topline">
-                <span
-                  :class="[
-                    'status-marker',
-                    `status-${task.status}`,
-                  ]"
-                ></span>
-                <span class="task-status-label">
-                  {{ statusLabel(task.status) }}
-                </span>
-                <span
-                  :class="[
-                    'priority-chip',
-                    priorityClass(task.priority),
-                  ]"
-                >
-                  {{ priorityLabel(task.priority) }}优先级
-                </span>
-              </div>
-
-              <h3>{{ task.title }}</h3>
-              <p class="task-description">
-                {{ task.description }}
-              </p>
-
-              <div class="task-card-footer">
-                <span>截止 {{ task.deadline }}</span>
-                <span class="task-arrow">↗</span>
-              </div>
-            </article>
-          </div>
-
-          <div v-else class="empty-state">
-            <span class="empty-mark">○</span>
-            <strong>
-              {{ taskFilter === "all" ? "还没有任务" : "没有匹配的任务" }}
-            </strong>
-            <p>
-              {{ taskFilter === "all"
-                ? "从一个小任务开始，把计划落到今天。"
-                : "试试切换上方的筛选条件。" }}
-            </p>
-            <button
-              v-if="taskFilter === 'all' && selectedCourse"
-              class="button button-primary"
-              type="button"
-              @click="openCreate"
-            >
-              新建第一个任务
-            </button>
-          </div>
-        </div>
-
-        <aside class="detail-column">
-          <div v-if="selectedTask" class="detail-card">
-            <div class="detail-card-heading">
-              <div>
-                <span class="eyebrow">任务详情</span>
-                <h2>{{ selectedTask.title }}</h2>
-              </div>
-              <span
-                :class="[
-                  'detail-status-badge',
-                  `status-${selectedTask.status}`,
-                ]"
-              >
-                {{ statusLabel(selectedTask.status) }}
-              </span>
-            </div>
-
-            <div class="detail-facts">
-              <div>
-                <span>课程</span>
-                <strong>{{ selectedTask.course_name }}</strong>
-              </div>
-              <div>
-                <span>截止日期</span>
-                <strong>{{ selectedTask.deadline }}</strong>
-              </div>
-              <div>
-                <span>优先级</span>
-                <strong>{{ priorityLabel(selectedTask.priority) }}</strong>
-              </div>
-              <div>
-                <span>任务 ID</span>
-                <strong class="mono-text">{{ selectedTask.id }}</strong>
-              </div>
-            </div>
-
-            <div class="detail-requirement">
-              <span>具体要求</span>
-              <p>{{ selectedTask.description }}</p>
-            </div>
-
-            <section class="plan-panel">
-              <div class="plan-heading">
-                <div class="plan-heading-copy">
-                  <span>学习计划</span>
-                  <strong v-if="taskPlan">
-                    {{ planStatusLabel(taskPlan.status) }}
-                  </strong>
-                  <p v-else-if="selectedTask.status === 'todo'" class="plan-heading-hint">
-                    根据任务和课程资料，生成可确认的执行步骤
-                  </p>
-                </div>
-                <button
-                  v-if="!taskPlan && selectedTask.status === 'todo'"
-                  class="button button-primary plan-generate-button"
-                  type="button"
-                  :disabled="planSaving"
-                  @click="generateTaskPlan"
-                >
-                  <span class="button-glyph" aria-hidden="true">✦</span>
-                  <span>{{ planSaving ? "正在生成…" : "生成学习计划草案" }}</span>
-                  <span class="plan-generate-arrow" aria-hidden="true">→</span>
-                </button>
-              </div>
-
-              <p v-if="plansLoading" class="plan-muted">正在读取学习计划…</p>
-              <p v-else-if="planError" class="form-error">{{ planError }}</p>
-
-              <template v-else-if="taskPlan">
-                <p class="plan-goal">{{ taskPlan.goal }}</p>
-                <p v-if="taskPlan.prerequisite_knowledge?.length" class="plan-prerequisite">
-                  前置：{{ taskPlan.prerequisite_knowledge.join("；") }}
-                </p>
-                <ol class="plan-step-list">
-                  <li v-for="step in taskPlan.steps" :key="step.id">
-                    <div>
-                      <strong>{{ step.position }}. {{ step.title }}</strong>
-                      <small>{{ step.estimated_minutes }} 分钟 · {{ step.status }}</small>
-                      <p>{{ step.description }}</p>
-                    </div>
-                  </li>
-                </ol>
-                <p v-if="taskPlan.sources?.length" class="plan-sources">
-                  资料来源：
-                  <span v-for="source in taskPlan.sources" :key="`${source.file_id}-${source.page}`">
-                    {{ source.file_name }}{{ source.page ? `（第 ${source.page} 页）` : "" }}
-                  </span>
-                </p>
-                <div class="plan-actions">
-                  <button
-                    v-if="taskPlan.status === 'awaiting_confirmation'"
-                    class="button button-primary button-wide"
-                    type="button"
-                    :disabled="planSaving"
-                    @click="changePlanState('confirm')"
-                  >
-                    确认并启动计划
-                  </button>
-                  <button
-                    v-else-if="taskPlan.status === 'active'"
-                    class="button button-secondary button-wide"
-                    type="button"
-                    :disabled="planSaving"
-                    @click="changePlanState('pause')"
-                  >
-                    暂停计划
-                  </button>
-                  <button
-                    v-else-if="taskPlan.status === 'paused'"
-                    class="button button-primary button-wide"
-                    type="button"
-                    :disabled="planSaving"
-                    @click="changePlanState('resume')"
-                  >
-                    恢复计划
-                  </button>
-                </div>
-              </template>
-
-              <p v-else class="plan-muted">
-                生成计划后，确认才会启动；它不会修改任务状态。
-              </p>
-            </section>
-
-            <div class="detail-actions">
-              <button
-                class="button button-primary button-wide"
-                type="button"
-                @click="updateTaskStatus(
-                  selectedTask.id,
-                  selectedTask.status === 'todo' ? 'done' : 'todo'
-                )"
-              >
-                {{ selectedTask.status === "todo"
-                  ? "标记为已完成"
-                  : "恢复为未完成" }}
-              </button>
-              <button
-                class="button button-secondary button-wide"
-                type="button"
-                @click="openEdit"
-              >
-                编辑任务
-              </button>
-              <button
-                class="text-button danger-text"
-                type="button"
-                @click="openDeleteDialog"
-              >
-                删除任务
-              </button>
-            </div>
-          </div>
-
-          <div v-else class="detail-empty">
-            <div class="empty-orbit">✦</div>
-            <span class="eyebrow">Focus view</span>
-            <h2>选择一项任务</h2>
-            <p>
-              点击左侧任务卡片，在这里查看完整要求并执行操作。
-            </p>
-          </div>
-        </aside>
+        <TaskDetailPanel
+          :selected-task="selectedTask"
+          :task-plan="taskPlan"
+          :plans-loading="plansLoading"
+          :plan-saving="planSaving"
+          :plan-error="planError"
+          :status-label="statusLabel"
+          :priority-label="priorityLabel"
+          :plan-status-label="planStatusLabel"
+          @generate-plan="generateTaskPlan"
+          @plan-action="changePlanState"
+          @toggle-status="updateTaskStatus"
+          @edit="openEdit"
+          @delete="openDeleteDialog"
+        />
       </section>
     </main>
 
