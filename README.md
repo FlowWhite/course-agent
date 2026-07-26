@@ -43,16 +43,14 @@ flowchart LR
 
 ```text
 .
-├─ server.py                    # FastAPI 入口与 API 路由
-├─ agent_runtime.py / tools.py  # DeepSeek Agent 与受控工具
-├─ *_service.py                 # 认证、课程资料、学习洞察与 PostgreSQL 数据服务
-├─ document_parser.py           # PDF / DOCX / TXT / Markdown 本地解析
-├─ models.py                    # Pydantic 请求、响应与领域模型
+├─ backend/
+│  ├─ src/course_agent/         # 可安装的 FastAPI、Agent、服务与模型包
+│  └─ tests/                    # 后端基础测试
+├─ server.py / app.py           # 旧启动命令的兼容入口
 ├─ postgres/                    # PostgreSQL 初始化 SQL
 ├─ scripts/                     # Docker 启动、迁移与历史维护脚本
 │  ├─ migrations/
 │  └─ legacy/sqlite/
-├─ tests/                       # 不依赖真实模型或数据库的基础测试
 ├─ docs/images/                 # README 展示图片
 └─ web/                         # Vue 3 前端
 ```
@@ -68,6 +66,12 @@ Copy-Item .env.example .env
 ```
 
 至少设置 `DEEPSEEK_API_KEY`、`POSTGRES_PASSWORD` 和 `JWT_SECRET_KEY`。`.env` 已被 Git 忽略，不能提交到仓库。
+
+本地直接运行后端时，先以 editable mode 安装包：
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -e .
+```
 
 ### 2. 启动服务
 
@@ -85,8 +89,8 @@ docker compose up --build
 后端基础测试不需要真实数据库、课程文件或模型密钥：
 
 ```powershell
-.\.venv\Scripts\python.exe -m unittest discover -s tests -v
-.\.venv\Scripts\python.exe -m py_compile *.py
+.\.venv\Scripts\python.exe -m unittest discover -s backend/tests -v
+.\.venv\Scripts\python.exe -m compileall -q backend/src
 ```
 
 前端构建验证：

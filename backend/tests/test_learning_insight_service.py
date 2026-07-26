@@ -1,7 +1,7 @@
 import unittest
 
-from learning_insight_service import _base_risk_score, _risk_level_from_score
-from models import RiskLevel, TaskPriority
+from course_agent.learning_insight_service import _base_risk_score, _risk_level_from_score
+from course_agent.models import RiskLevel, TaskPriority
 
 
 class DeadlineRiskTests(unittest.TestCase):

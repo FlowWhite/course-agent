@@ -4,12 +4,13 @@ WORKDIR /app
 
 ENV PYTHONUTF8=1
 ENV OPENAI_AGENTS_DISABLE_TRACING=1
+ENV COURSE_AGENT_PROJECT_ROOT=/app
 
-COPY requirements.txt .
+COPY pyproject.toml requirements.txt README.md ./
+COPY backend ./backend
 
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir .
 
-COPY *.py ./
 COPY data ./data
 
 # Keep the SQL bootstrap script available for new PostgreSQL volumes.
@@ -19,4 +20,4 @@ RUN mkdir -p /app/logs /app/data/uploads
 
 EXPOSE 8000
 
-CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "course_agent.main:app", "--host", "0.0.0.0", "--port", "8000"]

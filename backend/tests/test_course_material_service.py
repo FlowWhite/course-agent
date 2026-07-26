@@ -1,6 +1,6 @@
 import unittest
 
-from course_material_service import create_storage_name, sanitize_original_filename
+from course_agent.course_material_service import create_storage_name, sanitize_original_filename
 
 
 class CourseMaterialServiceTests(unittest.TestCase):

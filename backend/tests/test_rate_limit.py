@@ -1,6 +1,6 @@
 import unittest
 
-from rate_limit import InMemoryRateLimiter
+from course_agent.rate_limit import InMemoryRateLimiter
 
 
 class RateLimiterTests(unittest.TestCase):

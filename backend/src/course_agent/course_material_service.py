@@ -9,17 +9,15 @@ from uuid import uuid4
 
 from psycopg.rows import dict_row
 
-from document_parser import ParsedChunk
-from models import (
+from .document_parser import ParsedChunk
+from .models import (
     CourseFileRecord,
     DocumentParseStatus,
     DocumentSearchResult,
 )
-from postgres_database import get_postgres_connection
+from .paths import UPLOAD_ROOT
+from .postgres_database import get_postgres_connection
 
-
-PROJECT_DIR = Path(__file__).parent
-UPLOAD_ROOT = PROJECT_DIR / "data" / "uploads"
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 ALLOWED_FILE_TYPES = {
     ".pdf": "pdf",

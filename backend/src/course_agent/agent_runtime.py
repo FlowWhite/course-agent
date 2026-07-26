@@ -14,7 +14,7 @@ from agents import (
 )
 from openai import AsyncOpenAI
 
-from tools import (
+from .tools import (
     create_task,
     delete_task,
     get_task_detail,
@@ -25,15 +25,14 @@ from tools import (
     search_course_documents,
     list_deadline_risks,
 )
-from models import TaskPlanDraft
+from .models import TaskPlanDraft
+from .paths import PROJECT_ROOT
 
-
-PROJECT_DIR = Path(__file__).parent
 
 SESSION_DB_PATH = Path(
     os.getenv(
         "AGENT_SESSION_DB_PATH",
-        str(PROJECT_DIR / "data" / "sessions.db"),
+        str(PROJECT_ROOT / "data" / "sessions.db"),
     )
 )
 
@@ -85,7 +84,7 @@ def get_current_agent_course_id() -> str:
 
 def load_project_env() -> None:
     """从项目根目录的 .env 加载本地配置。"""
-    env_path = PROJECT_DIR / ".env"
+    env_path = PROJECT_ROOT / ".env"
 
     if not env_path.exists():
         return
