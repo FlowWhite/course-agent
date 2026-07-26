@@ -33,14 +33,14 @@ def error_response(message: str) -> str:
 
 def _current_document_user_id() -> int:
     # Import lazily to avoid the agent_runtime -> tools import cycle.
-    from agent_runtime import get_current_agent_user_id
+    from .agent_runtime import get_current_agent_user_id
 
     return get_current_agent_user_id()
 
 
 def _current_agent_course_id() -> str | None:
     # Import lazily to avoid the agent_runtime -> tools import cycle.
-    from agent_runtime import get_current_agent_course_id
+    from .agent_runtime import get_current_agent_course_id
 
     try:
         return get_current_agent_course_id()
