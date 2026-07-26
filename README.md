@@ -115,7 +115,7 @@ docker compose up -d --build
 docker compose exec backend python /app/scripts/seed_demo_data.py --yes
 ```
 
-默认演示账号为 `demo`，密码为 `course-agent-demo`。也可以在执行前通过 `DEMO_USERNAME`、`DEMO_PASSWORD` 环境变量覆盖。该账号和密码仅用于本地/作品集演示，禁止用于生产环境；演示资料是合成内容，不包含原始课程 PDF。
+默认演示账号为 `demo`，密码为 `course-agent-demo`。如果使用 Docker 覆盖账号信息，请把变量显式传给容器，例如 `docker compose exec -e DEMO_USERNAME=my-demo -e DEMO_PASSWORD=another-demo-password backend python /app/scripts/seed_demo_data.py --yes`。该账号和密码仅用于本地/作品集演示，禁止用于生产环境；演示资料是合成内容，不包含原始课程 PDF。
 
 ## 开发验证
 
