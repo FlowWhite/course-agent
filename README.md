@@ -59,6 +59,7 @@ flowchart LR
 │  └─ legacy/sqlite/
 ├─ docs/images/                 # README 展示图片
 └─ web/                         # Vue 3 前端
+   └─ src/composables/          # 课程工作台状态、API 调用与交互逻辑
 ```
 
 ## 本地启动
