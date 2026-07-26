@@ -22,4 +22,5 @@ logs/
 
 # Test and frontend source are not required by Dockerfile.backend.
 tests/
+backend/tests/
 web/

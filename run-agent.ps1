@@ -19,10 +19,10 @@ if ([string]::IsNullOrWhiteSpace($env:DEEPSEEK_API_KEY)) {
 if (-not (Test-Path ".venv\Scripts\python.exe")) {
     Write-Host "未找到虚拟环境，正在创建……"
     py -m venv .venv
-
-    Write-Host "正在安装项目依赖……"
-    & ".venv\Scripts\python.exe" -m pip install -r requirements.txt
 }
+
+Write-Host "正在同步项目依赖与后端包……"
+& ".venv\Scripts\python.exe" -m pip install -e .
 
 if ([string]::IsNullOrWhiteSpace($env:DEEPSEEK_API_KEY)) {
     Write-Host ""
@@ -37,7 +37,7 @@ if ([string]::IsNullOrWhiteSpace($env:DEEPSEEK_API_KEY)) {
 Write-Host "正在启动课程与项目管理 Agent……"
 Write-Host ""
 
-& ".venv\Scripts\python.exe" app.py
+& ".venv\Scripts\python.exe" -m course_agent.agent_cli
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host ""

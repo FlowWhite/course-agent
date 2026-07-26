@@ -17,6 +17,12 @@ if (-not (Test-Path -LiteralPath $pythonExe)) {
     exit 1
 }
 
+& $pythonExe -c "import course_agent" 2>$null
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "正在同步后端包……" -ForegroundColor Cyan
+    & $pythonExe -m pip install -e $projectRoot
+}
+
 if (-not (Test-Path -LiteralPath (Join-Path $frontendRoot "package.json"))) {
     Write-Host "错误：未找到前端项目：$frontendRoot" -ForegroundColor Red
     exit 1
@@ -27,7 +33,7 @@ if ($null -eq (Get-Command npm.cmd -ErrorAction SilentlyContinue)) {
     exit 1
 }
 
- $backendCommand = 'cd /d "' + $projectRoot + '" && "' + $pythonExe + '" -m uvicorn server:app --host 127.0.0.1 --port 8000'
+ $backendCommand = 'cd /d "' + $projectRoot + '" && "' + $pythonExe + '" -m uvicorn course_agent.main:app --host 127.0.0.1 --port 8000'
  $frontendCommand = 'cd /d "' + $frontendRoot + '" && npm.cmd run dev -- --host 127.0.0.1'
 
 Write-Host "正在启动后端：http://127.0.0.1:8000" -ForegroundColor Cyan

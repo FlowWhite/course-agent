@@ -2,7 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from document_parser import DocumentParseError, parse_document, validate_file_signature
+from course_agent.document_parser import DocumentParseError, parse_document, validate_file_signature
 
 
 class DocumentParserTests(unittest.TestCase):

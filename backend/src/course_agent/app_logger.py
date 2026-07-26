@@ -1,9 +1,8 @@
 import logging
-from pathlib import Path
 
+from .paths import LOG_DIR
 
-LOG_DIR = Path(__file__).parent / "logs"
-LOG_DIR.mkdir(exist_ok=True)
+LOG_DIR.mkdir(parents=True, exist_ok=True)
 
 LOG_PATH = LOG_DIR / "agent.log"
 

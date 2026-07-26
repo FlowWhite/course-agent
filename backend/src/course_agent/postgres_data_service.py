@@ -5,19 +5,15 @@ from typing import Any
 
 from psycopg.rows import dict_row
 
-from models import (
+from .models import (
     CourseSummary,
     TaskCreate,
     TaskRecord,
     TaskStatusUpdate,
     TaskUpdate,
 )
-from postgres_database import get_postgres_connection
-BACKUP_DIR = (
-    Path(__file__).parent
-    / "data"
-    / "backups"
-)
+from .paths import BACKUP_DIR
+from .postgres_database import get_postgres_connection
 
 
 def _get_connection():

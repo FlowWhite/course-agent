@@ -9,8 +9,8 @@ from uuid import uuid4
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
-from course_material_service import search_course_documents_data
-from models import (
+from .course_material_service import search_course_documents_data
+from .models import (
     LearningPlanRecord,
     LearningPlanStatus,
     LearningPlanStepRecord,
@@ -21,8 +21,8 @@ from models import (
     TaskPriority,
     TaskRiskRecord,
 )
-from postgres_data_service import get_task_detail_data
-from postgres_database import get_postgres_connection
+from .postgres_data_service import get_task_detail_data
+from .postgres_database import get_postgres_connection
 
 
 def _get_connection():

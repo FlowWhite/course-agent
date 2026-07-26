@@ -4,7 +4,7 @@ import psycopg
 from psycopg.rows import dict_row
 from pwdlib import PasswordHash
 
-from postgres_database import get_postgres_connection
+from .postgres_database import get_postgres_connection
 
 
 password_hasher = PasswordHash.recommended()

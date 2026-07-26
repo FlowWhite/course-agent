@@ -2,10 +2,10 @@ from typing import Literal
 
 from agents import function_tool
 
-from app_logger import logger
-from course_material_service import search_course_documents_data
-from learning_insight_service import list_task_risks_data
-from postgres_data_service import (
+from .app_logger import logger
+from .course_material_service import search_course_documents_data
+from .learning_insight_service import list_task_risks_data
+from .postgres_data_service import (
     create_task_data,
     delete_task_data,
     get_task_detail_data,
@@ -14,7 +14,7 @@ from postgres_data_service import (
     update_task_data,
     update_task_status_data,
 )
-from models import ToolResponse
+from .models import ToolResponse
 
 
 def success_response(data) -> str:

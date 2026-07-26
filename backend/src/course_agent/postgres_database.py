@@ -1,11 +1,10 @@
 import os
-from pathlib import Path
 
 import psycopg
 
+from .paths import POSTGRES_SCHEMA_PATH
 
-PROJECT_DIR = Path(__file__).parent
-SCHEMA_PATH = PROJECT_DIR / "postgres" / "init.sql"
+SCHEMA_PATH = POSTGRES_SCHEMA_PATH
 
 
 def get_postgres_connection():
