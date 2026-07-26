@@ -14,7 +14,7 @@ router = APIRouter(prefix="/api/v1", tags=["courses"])
 def list_courses_api(current_user: dict = Depends(get_current_user)) -> dict:
     """Return all courses and their unfinished-task counts."""
     try:
-        courses = list_courses_data()
+        courses = list_courses_data(user_id=int(current_user["id"]))
         return ToolResponse(
             success=True,
             data=[course.model_dump(mode="json") for course in courses],

@@ -102,16 +102,16 @@ def calculate_sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _assert_course_exists(cursor, course_id: str) -> None:
+def _assert_course_exists(cursor, user_id: int, course_id: str) -> None:
     cursor.execute(
-        "SELECT 1 FROM courses WHERE id = %s",
-        (course_id,),
+        "SELECT 1 FROM courses WHERE id = %s AND user_id = %s",
+        (course_id, user_id),
     )
     if cursor.fetchone() is None:
         raise ValueError("没有找到对应课程。")
 
 
-def _resolve_course_id(cursor, course: str) -> str:
+def _resolve_course_id(cursor, user_id: int, course: str) -> str:
     normalized = course.strip()
     if not normalized:
         raise ValueError("课程不能为空。")
@@ -120,9 +120,10 @@ def _resolve_course_id(cursor, course: str) -> str:
         """
         SELECT id
         FROM courses
-        WHERE id = %s OR name = %s
+        WHERE user_id = %s
+          AND (id = %s OR name = %s)
         """,
-        (normalized, normalized),
+        (user_id, normalized, normalized),
     )
     rows = cursor.fetchall()
 
@@ -172,7 +173,7 @@ def create_course_file_data(
 
     with _get_connection() as connection:
         with connection.cursor() as cursor:
-            _assert_course_exists(cursor, course_id)
+            _assert_course_exists(cursor, user_id, course_id)
             cursor.execute(
                 """
                 INSERT INTO course_files (
@@ -414,7 +415,7 @@ def search_course_documents_data(
 
     with _get_connection() as connection:
         with connection.cursor() as cursor:
-            course_id = _resolve_course_id(cursor, course)
+            course_id = _resolve_course_id(cursor, user_id, course)
             like_conditions = " OR ".join(
                 "dc.content ILIKE %s"
                 for _ in terms

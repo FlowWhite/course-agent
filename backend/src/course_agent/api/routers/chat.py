@@ -39,14 +39,19 @@ def chat_api(
     current_user: dict = Depends(get_current_user),
 ) -> dict:
     """Run the Agent constrained to the currently selected course."""
+    user_id = int(current_user["id"])
     course_id = request.course_id.strip()
     course = next(
-        (item for item in list_courses_data() if item.id == course_id),
+        (
+            item
+            for item in list_courses_data(user_id=user_id)
+            if item.id == course_id
+        ),
         None,
     )
     if course is None:
         raise HTTPException(status_code=404, detail="没有找到当前课程。")
-    user_token = set_current_agent_user_id(int(current_user["id"]))
+    user_token = set_current_agent_user_id(user_id)
     course_token = set_current_agent_course_id(course.id)
     try:
         agent = get_runtime_agent(course.id, course.name)

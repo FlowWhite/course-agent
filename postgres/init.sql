@@ -8,13 +8,15 @@ CREATE TABLE IF NOT EXISTS users (
 
 CREATE TABLE IF NOT EXISTS courses (
     id TEXT PRIMARY KEY,
+    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
     teacher TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS tasks (
     id TEXT PRIMARY KEY,
-    course_id TEXT NOT NULL REFERENCES courses(id),
+    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    course_id TEXT NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
     title TEXT NOT NULL,
     deadline DATE NOT NULL,
     status TEXT NOT NULL CHECK (status IN ('todo', 'done')),
@@ -24,6 +26,12 @@ CREATE TABLE IF NOT EXISTS tasks (
 
 CREATE INDEX IF NOT EXISTS idx_tasks_course_id
     ON tasks(course_id);
+
+CREATE INDEX IF NOT EXISTS idx_courses_user_id
+    ON courses(user_id);
+
+CREATE INDEX IF NOT EXISTS idx_tasks_user_course
+    ON tasks(user_id, course_id);
 
 CREATE INDEX IF NOT EXISTS idx_tasks_status
     ON tasks(status);

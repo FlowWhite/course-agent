@@ -102,6 +102,10 @@ docker compose up --build
 
 `docker-compose.yml` 将 PostgreSQL 仅绑定到本机 `127.0.0.1`，供本地开发使用。部署到公网时，不要将数据库端口暴露到互联网；应通过内部网络、访问控制和备份策略管理数据库。
 
+> 如果本机已经存在旧版 PostgreSQL 数据卷，`postgres/init.sql` 不会自动重新执行。升级到用户隔离版本前，请先备份数据库，再人工检查并执行 `scripts/migrations/001_user_scope.sql`，为所有旧课程和任务指定明确的 `user_id`。旧版 SQLite 迁移脚本还需要设置 `LEGACY_OWNER_USER_ID`，避免把历史数据无意间分配给错误用户。不要使用 `docker compose down -v` 代替迁移，它会删除本地 PostgreSQL 数据卷。
+
+新注册用户默认只能看到属于自己的课程和任务；如果课程列表为空，需要由课程创建/导入流程为该用户建立课程，不能直接依赖另一用户的演示数据。
+
 ## 开发验证
 
 后端基础测试不需要真实数据库、课程文件或模型密钥：
