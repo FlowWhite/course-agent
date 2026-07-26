@@ -1,10 +1,11 @@
 import json
 from pathlib import Path
 
-from database import get_connection, init_database
+from .database import get_connection, init_database
 
 
-JSON_PATH = Path(__file__).parent / "data" / "tasks.json"
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+JSON_PATH = PROJECT_ROOT / "data" / "tasks.json"
 
 
 def import_data() -> None:

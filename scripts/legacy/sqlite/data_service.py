@@ -1,7 +1,7 @@
 import sqlite3
 from typing import Any
 
-from database import backup_database, get_connection
+from .database import backup_database, get_connection
 from models import (
     CourseSummary,
     TaskCreate,
