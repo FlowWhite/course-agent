@@ -12,6 +12,7 @@ COPY backend ./backend
 RUN pip install --no-cache-dir .
 
 COPY data ./data
+COPY scripts/seed_demo_data.py ./scripts/seed_demo_data.py
 
 # Keep the SQL bootstrap script available for new PostgreSQL volumes.
 COPY postgres ./postgres

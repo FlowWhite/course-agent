@@ -62,7 +62,7 @@ flowchart LR
 │  └─ tests/                    # 后端与 API 契约测试
 ├─ server.py / app.py           # 旧启动命令的兼容入口
 ├─ postgres/                    # PostgreSQL 初始化 SQL
-├─ scripts/                     # Docker 启动、迁移与历史维护脚本
+├─ scripts/                     # Docker 启动、迁移与演示数据脚本
 │  ├─ migrations/
 │  └─ legacy/sqlite/
 ├─ docs/images/                 # README 展示图片
@@ -105,6 +105,17 @@ docker compose up --build
 > 如果本机已经存在旧版 PostgreSQL 数据卷，`postgres/init.sql` 不会自动重新执行。升级到用户隔离版本前，请先备份数据库，再人工检查并执行 `scripts/migrations/001_user_scope.sql`，为所有旧课程和任务指定明确的 `user_id`。旧版 SQLite 迁移脚本还需要设置 `LEGACY_OWNER_USER_ID`，避免把历史数据无意间分配给错误用户。不要使用 `docker compose down -v` 代替迁移，它会删除本地 PostgreSQL 数据卷。
 
 新注册用户默认只能看到属于自己的课程和任务；如果课程列表为空，需要由课程创建/导入流程为该用户建立课程，不能直接依赖另一用户的演示数据。
+
+### 3. 创建公开演示账号（可选）
+
+仓库提供一组脱敏的“计算机网络”合成演示数据，包含课程、实验任务和一份 Markdown 课程资料。它不会在应用启动时自动写入数据库，只有显式执行下面的命令才会创建：
+
+```powershell
+docker compose up -d --build
+docker compose exec backend python /app/scripts/seed_demo_data.py --yes
+```
+
+默认演示账号为 `demo`，密码为 `course-agent-demo`。如果使用 Docker 覆盖账号信息，请把变量显式传给容器，例如 `docker compose exec -e DEMO_USERNAME=my-demo -e DEMO_PASSWORD=another-demo-password backend python /app/scripts/seed_demo_data.py --yes`。该账号和密码仅用于本地/作品集演示，禁止用于生产环境；演示资料是合成内容，不包含原始课程 PDF。
 
 ## 开发验证
 
