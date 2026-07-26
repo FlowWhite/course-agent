@@ -31,6 +31,7 @@ htmlcov/
 
 # Local tooling and editor state
 .playwright-mcp/
+.playwright-cli/
 tmp/
 _knowledge_base/
 .idea/
