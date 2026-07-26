@@ -1,8 +1,12 @@
 <script setup>
 import AuthScreen from "./components/AuthScreen.vue"
+import AgentChatDrawer from "./components/AgentChatDrawer.vue"
+import CourseMaterialsModal from "./components/CourseMaterialsModal.vue"
 import CourseSidebar from "./components/CourseSidebar.vue"
+import RiskRadarModal from "./components/RiskRadarModal.vue"
 import TaskDetailPanel from "./components/TaskDetailPanel.vue"
 import TaskList from "./components/TaskList.vue"
+import TaskManagementModals from "./components/TaskManagementModals.vue"
 import WorkspaceTopbar from "./components/WorkspaceTopbar.vue"
 import { useCourseWorkspace } from "./composables/useCourseWorkspace"
 
@@ -126,332 +130,57 @@ const {
       </section>
     </main>
 
-    <aside
+    <AgentChatDrawer
       v-if="chatOpen"
-      class="chat-drawer"
-      aria-label="Agent 对话"
-    >
-      <div class="chat-header">
-        <div>
-          <span class="eyebrow">{{ selectedCourse?.id || "Course Agent" }}</span>
-          <h2>{{ selectedCourse?.name || "课程 Agent" }}</h2>
-          <p class="chat-scope">仅访问当前课程的任务与资料</p>
-        </div>
-        <button
-          class="icon-button"
-          type="button"
-          aria-label="关闭对话"
-          @click="toggleChat"
-        >
-          ×
-        </button>
-      </div>
+      :selected-course="selectedCourse"
+      :chat-messages="chatMessages"
+      :chat-sending="chatSending"
+      v-model="chatInput"
+      @close="toggleChat"
+      @send="sendChat"
+    />
 
-      <div class="chat-messages" aria-live="polite">
-        <div
-          v-for="(message, index) in chatMessages"
-          :key="`${message.role}-${index}`"
-          :class="[
-            'chat-message',
-            `message-${message.role}`,
-          ]"
-        >
-          <span class="message-role">
-            {{ message.role === "user" ? "你" : "Agent" }}
-          </span>
-          <p>{{ message.content }}</p>
-        </div>
-
-        <div v-if="chatSending" class="chat-message message-assistant">
-          <span class="message-role">Agent</span>
-          <p class="typing-dots">正在思考……</p>
-        </div>
-      </div>
-
-      <form class="chat-composer" @submit.prevent="sendChat">
-        <textarea
-          v-model="chatInput"
-          rows="3"
-          :placeholder="selectedCourse
-            ? `例如：${selectedCourse.name}有哪些待完成任务？`
-            : '请先选择课程'"
-          :disabled="!selectedCourse"
-          @keydown.enter.exact.prevent="sendChat"
-        ></textarea>
-        <button
-          class="button button-primary"
-          type="submit"
-          :disabled="chatSending || !selectedCourse || !chatInput.trim()"
-        >
-          发送
-        </button>
-      </form>
-    </aside>
-
-    <div
+    <CourseMaterialsModal
       v-if="materialsOpen"
-      class="modal-backdrop"
-      @click.self="materialsOpen = false"
-    >
-      <section class="modal-card materials-modal" role="dialog" aria-modal="true">
-        <div class="modal-header">
-          <div>
-            <span class="eyebrow">课程资料</span>
-            <h2>{{ selectedCourse?.name || "课程资料库" }}</h2>
-          </div>
-          <button class="icon-button" type="button" @click="materialsOpen = false">
-            ×
-          </button>
-        </div>
+      :selected-course="selectedCourse"
+      :course-files="courseFiles"
+      :files-loading="filesLoading"
+      :file-uploading="fileUploading"
+      :file-error="fileError"
+      :file-size-label="fileSizeLabel"
+      :parse-status-label="parseStatusLabel"
+      @close="materialsOpen = false"
+      @upload="uploadCourseFile"
+      @delete="deleteCourseFile"
+    />
 
-        <label class="file-upload-control">
-          <span>{{ fileUploading ? "正在上传并解析…" : "上传 PDF、DOCX、TXT 或 MD（最大 20 MB）" }}</span>
-          <input
-            type="file"
-            accept=".pdf,.docx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown"
-            :disabled="fileUploading || !selectedCourse"
-            @change="uploadCourseFile"
-          />
-        </label>
-
-        <p v-if="fileError" class="form-error">{{ fileError }}</p>
-        <p v-else-if="filesLoading" class="plan-muted">正在读取课程资料…</p>
-        <ul v-else-if="courseFiles.length" class="material-list">
-          <li v-for="courseFile in courseFiles" :key="courseFile.id">
-            <div>
-              <strong>{{ courseFile.original_filename }}</strong>
-              <small>
-                {{ courseFile.file_type.toUpperCase() }} ·
-                {{ fileSizeLabel(courseFile.file_size) }} ·
-                {{ parseStatusLabel(courseFile.parse_status) }}
-              </small>
-              <p v-if="courseFile.parse_error" class="material-error">
-                {{ courseFile.parse_error }}
-              </p>
-            </div>
-            <button class="text-button danger-text" type="button" @click="deleteCourseFile(courseFile)">
-              删除
-            </button>
-          </li>
-        </ul>
-        <p v-else class="plan-muted">
-          还没有课程资料。上传后，Agent 会仅检索相关片段作为参考。
-        </p>
-      </section>
-    </div>
-
-    <div
+    <RiskRadarModal
       v-if="risksOpen"
-      class="modal-backdrop"
-      @click.self="risksOpen = false"
-    >
-      <section class="modal-card risks-modal" role="dialog" aria-modal="true">
-        <div class="modal-header">
-          <div>
-            <span class="eyebrow">截止日期风险雷达</span>
-            <h2>{{ selectedCourse?.name || "全部课程" }}</h2>
-          </div>
-          <button class="icon-button" type="button" @click="risksOpen = false">
-            ×
-          </button>
-        </div>
+      :selected-course="selectedCourse"
+      :risks="risks"
+      :risks-loading="risksLoading"
+      :risks-error="risksError"
+      :risk-level-label="riskLevelLabel"
+      @close="risksOpen = false"
+    />
 
-        <p v-if="risksLoading" class="plan-muted">正在计算风险…</p>
-        <p v-else-if="risksError" class="form-error">{{ risksError }}</p>
-        <ul v-else-if="risks.length" class="risk-list">
-          <li v-for="risk in risks" :key="risk.task_id" :class="`risk-${risk.risk_level}`">
-            <div class="risk-level">{{ riskLevelLabel(risk.risk_level) }}</div>
-            <div>
-              <strong>{{ risk.title }}</strong>
-              <small>截止 {{ risk.deadline }} · 剩余 {{ risk.days_remaining }} 天</small>
-              <p>{{ risk.reasons.join("；") }}</p>
-              <span v-if="risk.sources?.length" class="risk-source">
-                关联资料：{{ risk.sources[0].file_name }}
-              </span>
-            </div>
-          </li>
-        </ul>
-        <p v-else class="plan-muted">当前筛选范围内没有待办任务风险。</p>
-      </section>
-    </div>
-
-    <div
-      v-if="formMode"
-      class="modal-backdrop"
-      @click.self="closeForm"
-    >
-      <form
-        class="modal-card"
-        @submit.prevent="submitTaskForm"
-      >
-        <div class="modal-header">
-          <div>
-            <span class="eyebrow">任务管理</span>
-            <h2>{{ formTitle }}</h2>
-          </div>
-          <button
-            class="icon-button"
-            type="button"
-            aria-label="关闭表单"
-            @click="closeForm"
-          >
-            ×
-          </button>
-        </div>
-
-        <label v-if="formMode === 'create'" class="form-field">
-          <span>任务 ID</span>
-          <input
-            v-model.trim="taskForm.task_id"
-            required
-            placeholder="例如：os-lab-2"
-          />
-        </label>
-
-        <label v-if="formMode === 'create'" class="form-field">
-          <span>所属课程</span>
-          <select v-model="taskForm.course" required>
-            <option value="" disabled>选择课程</option>
-            <option
-              v-for="course in courses"
-              :key="course.id"
-              :value="course.id"
-            >
-              {{ course.name }}
-            </option>
-          </select>
-        </label>
-
-        <label v-else class="form-field">
-          <span>任务 ID</span>
-          <input :value="taskForm.task_id" disabled />
-        </label>
-
-        <label class="form-field">
-          <span>任务标题</span>
-          <input
-            v-model.trim="taskForm.title"
-            required
-            placeholder="例如：完成实验报告"
-          />
-        </label>
-
-        <div class="form-row">
-          <label class="form-field">
-            <span>截止日期</span>
-            <input
-              v-model="taskForm.deadline"
-              type="date"
-              required
-            />
-          </label>
-
-          <label class="form-field">
-            <span>优先级</span>
-            <select v-model="taskForm.priority" required>
-              <option value="high">高</option>
-              <option value="medium">中</option>
-              <option value="low">低</option>
-            </select>
-          </label>
-        </div>
-
-        <label class="form-field">
-          <span>具体要求</span>
-          <textarea
-            v-model.trim="taskForm.description"
-            rows="5"
-            required
-            placeholder="写下完成标准或提交要求"
-          ></textarea>
-        </label>
-
-        <p v-if="formError" class="form-error" role="alert">
-          {{ formError }}
-        </p>
-
-        <div class="modal-actions">
-          <button
-            class="button button-secondary"
-            type="button"
-            :disabled="formSaving"
-            @click="closeForm"
-          >
-            取消
-          </button>
-          <button
-            class="button button-primary"
-            type="submit"
-            :disabled="formSaving"
-          >
-            {{ formSaving ? "正在保存……" : "保存任务" }}
-          </button>
-        </div>
-      </form>
-    </div>
-
-    <div
-      v-if="deleteDialogOpen"
-      class="modal-backdrop"
-      @click.self="closeDeleteDialog"
-    >
-      <section class="modal-card danger-modal" role="dialog" aria-modal="true">
-        <div class="modal-header">
-          <div>
-            <span class="eyebrow danger-text">不可逆操作</span>
-            <h2>删除任务？</h2>
-          </div>
-          <button
-            class="icon-button"
-            type="button"
-            aria-label="关闭删除确认"
-            @click="closeDeleteDialog"
-          >
-            ×
-          </button>
-        </div>
-
-        <p class="danger-copy">
-          删除前会自动备份业务数据库，但任务本身将从当前数据中移除。
-        </p>
-
-        <p class="confirmation-hint">
-          请输入：
-          <code>{{ deleteConfirmationText }}</code>
-        </p>
-
-        <input
-          v-model="deleteInput"
-          class="confirmation-input"
-          autocomplete="off"
-          placeholder="输入确认文本"
-          @keyup.enter="confirmDelete"
-        />
-
-        <p v-if="deleteError" class="form-error" role="alert">
-          {{ deleteError }}
-        </p>
-
-        <div class="modal-actions">
-          <button
-            class="button button-secondary"
-            type="button"
-            :disabled="deleteSaving"
-            @click="closeDeleteDialog"
-          >
-            取消
-          </button>
-          <button
-            class="button button-danger"
-            type="button"
-            :disabled="deleteSaving"
-            @click="confirmDelete"
-          >
-            {{ deleteSaving ? "正在删除……" : "确认删除" }}
-          </button>
-        </div>
-      </section>
-    </div>
+    <TaskManagementModals
+      :form-mode="formMode"
+      :form-title="formTitle"
+      :task-form="taskForm"
+      :courses="courses"
+      :form-saving="formSaving"
+      :form-error="formError"
+      :delete-dialog-open="deleteDialogOpen"
+      :delete-confirmation-text="deleteConfirmationText"
+      v-model:delete-input="deleteInput"
+      :delete-error="deleteError"
+      :delete-saving="deleteSaving"
+      @close-form="closeForm"
+      @submit-form="submitTaskForm"
+      @close-delete="closeDeleteDialog"
+      @confirm-delete="confirmDelete"
+    />
   </div>
 </template>
 

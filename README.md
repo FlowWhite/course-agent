@@ -59,7 +59,7 @@ flowchart LR
 │  └─ legacy/sqlite/
 ├─ docs/images/                 # README 展示图片
 └─ web/                         # Vue 3 前端
-   ├─ src/components/           # 认证、课程侧栏、任务列表与详情等视觉组件
+   ├─ src/components/           # 认证、课程、任务、资料、风险与 Agent 视觉组件
    └─ src/composables/          # 课程工作台状态、API 调用与交互逻辑
 ```
 
