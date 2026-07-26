@@ -1,6 +1,12 @@
 # Course Agent
 
+[![Course Agent CI](https://github.com/FlowWhite/course-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/FlowWhite/course-agent/actions/workflows/ci.yml)
+
 Course Agent 是一个面向课程任务执行的学习工作台。它把课程资料、任务截止日期与学习计划结合起来，提供**有来源、可解释、需确认**的学习辅助，而不是直接替用户修改任务。
+
+## 界面展示
+
+![Course Agent 登录页](docs/images/login-page.png)
 
 ## 核心能力
 
@@ -32,6 +38,24 @@ flowchart LR
 - 前端：Vue 3、Vite
 - 数据与部署：PostgreSQL、Docker Compose
 - 文档解析：pypdf、python-docx
+
+## 项目结构
+
+```text
+.
+├─ server.py                    # FastAPI 入口与 API 路由
+├─ agent_runtime.py / tools.py  # DeepSeek Agent 与受控工具
+├─ *_service.py                 # 认证、课程资料、学习洞察与 PostgreSQL 数据服务
+├─ document_parser.py           # PDF / DOCX / TXT / Markdown 本地解析
+├─ models.py                    # Pydantic 请求、响应与领域模型
+├─ postgres/                    # PostgreSQL 初始化 SQL
+├─ scripts/                     # Docker 启动、迁移与历史维护脚本
+│  ├─ migrations/
+│  └─ legacy/sqlite/
+├─ tests/                       # 不依赖真实模型或数据库的基础测试
+├─ docs/images/                 # README 展示图片
+└─ web/                         # Vue 3 前端
+```
 
 ## 本地启动
 

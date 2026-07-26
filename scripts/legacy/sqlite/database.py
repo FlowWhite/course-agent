@@ -3,16 +3,9 @@ from datetime import datetime
 from pathlib import Path
 
 
-DB_PATH = (
-    Path(__file__).parent
-    / "data"
-    / "course.db"
-)
-BACKUP_DIR = (
-    Path(__file__).parent
-    / "data"
-    / "backups"
-)
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+DB_PATH = PROJECT_ROOT / "data" / "course.db"
+BACKUP_DIR = PROJECT_ROOT / "data" / "backups"
 
 def get_connection():
     return sqlite3.connect(DB_PATH)
