@@ -8,7 +8,9 @@ Course Agent 是一个面向课程任务执行的学习工作台。它把课程�
 
 ![Course Agent 登录页](docs/images/login-page.png)
 
-> 公开展示仅使用不含课程内容的界面图。请勿将真实课程文件、账号信息或模型密钥用于截图、issue 或日志。
+![Course Agent 工作台与任务详情](docs/images/workspace-task-detail.png)
+
+> 公开展示仅使用虚构的演示课程与任务。请勿将真实课程文件、账号信息或模型密钥用于截图、issue 或日志。
 
 ## 核心能力
 
