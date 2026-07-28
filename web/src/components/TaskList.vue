@@ -33,9 +33,9 @@ const emit = defineEmits(["select", "create", "update:task-filter"])
     <div class="filter-bar" role="tablist">
       <button
         v-for="filter in [
-          { value: 'all', label: '全部' },
           { value: 'todo', label: '待完成' },
           { value: 'done', label: '已完成' },
+          { value: 'all', label: '全部' },
         ]"
         :key="filter.value"
         :class="['filter-button', { active: taskFilter === filter.value }]"

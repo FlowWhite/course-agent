@@ -18,10 +18,11 @@ const {
   deleteSaving, chatOpen, chatInput, chatSending, chatMessages, materialsOpen,
   courseFiles, filesLoading, fileUploading, fileError, risksOpen, risks,
   risksLoading, risksError, taskPlan, plansLoading, planSaving, planError,
+  taskAssessment, assessmentSaving, assessmentError,
   selectedCourse, selectedTask, filteredTasks, todoCount, doneCount, formTitle,
   deleteConfirmationText, activateCourseAgentChat, login, switchAuthMode,
   register, logout, selectCourse, loadTaskDetail, loadCourseFiles, uploadCourseFile,
-  deleteCourseFile, loadRisks, generateTaskPlan, changePlanState,
+  deleteCourseFile, loadRisks, generateTaskPlan, confirmTaskPlan, assessTaskSubmission,
   updateTaskStatus, openCreate, openEdit, closeForm, submitTaskForm,
   openDeleteDialog, closeDeleteDialog, confirmDelete, toggleChat, sendChat,
   statusLabel, priorityLabel, courseInitials, priorityClass, fileSizeLabel,
@@ -118,14 +119,18 @@ const {
           :plans-loading="plansLoading"
           :plan-saving="planSaving"
           :plan-error="planError"
+          :task-assessment="taskAssessment"
+          :assessment-saving="assessmentSaving"
+          :assessment-error="assessmentError"
           :status-label="statusLabel"
           :priority-label="priorityLabel"
           :plan-status-label="planStatusLabel"
           @generate-plan="generateTaskPlan"
-          @plan-action="changePlanState"
+          @confirm-plan="confirmTaskPlan"
           @toggle-status="updateTaskStatus"
           @edit="openEdit"
           @delete="openDeleteDialog"
+          @assess-submission="assessTaskSubmission"
         />
       </section>
     </main>
@@ -938,6 +943,41 @@ const {
   line-height: 1.1;
 }
 
+.detail-heading-actions {
+  display: grid;
+  flex: 0 0 auto;
+  justify-items: end;
+  gap: 8px;
+}
+
+.detail-management-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.detail-action-button {
+  min-height: 28px;
+  padding: 4px 7px;
+  border: 1px solid #c7d4d0;
+  border-radius: 7px;
+  background: rgb(255 253 248 / 58%);
+  color: #526565;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.7rem;
+  font-weight: 800;
+}
+
+.detail-action-button:hover {
+  border-color: #aabdb7;
+  background: #fffaf1;
+}
+
+.detail-action-button:focus-visible {
+  outline: 3px solid rgb(237 121 95 / 28%);
+  outline-offset: 2px;
+}
+
 .detail-status-badge {
   padding: 6px 9px;
   border-radius: 999px;
@@ -1008,6 +1048,183 @@ const {
   align-items: stretch;
   gap: 9px;
   margin-top: 24px;
+}
+
+.assessment-panel {
+  margin-top: 28px;
+  padding-top: 22px;
+  border-top: 1px solid #cfded9;
+}
+
+.assessment-heading,
+.assessment-upload-row,
+.assessment-check-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.assessment-heading {
+  align-items: flex-start;
+}
+
+.assessment-heading h3 {
+  margin: 6px 0 0;
+  color: #274043;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.28rem;
+  font-weight: 400;
+  letter-spacing: -0.025em;
+}
+
+.assessment-intro,
+.assessment-summary,
+.assessment-file-name,
+.assessment-caveat {
+  color: #5e7473;
+  font-size: 0.78rem;
+  line-height: 1.65;
+}
+
+.assessment-intro {
+  margin: 9px 0 0;
+}
+
+.assessment-upload-row {
+  margin-top: 15px;
+  padding: 12px;
+  border: 1px solid #d4c7ae;
+  border-radius: 10px;
+  background: #fffaf0;
+}
+
+.assessment-file-control {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+  color: #566c6c;
+  font-size: 0.7rem;
+  font-weight: 800;
+}
+
+.assessment-file-control input {
+  max-width: 100%;
+  color: #687878;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 400;
+}
+
+.assessment-submit-button {
+  min-height: 38px;
+  flex: 0 0 auto;
+  padding: 0 12px;
+  font-size: 0.76rem;
+}
+
+.assessment-file-name {
+  margin: 8px 0 0;
+  color: #6e817c;
+}
+
+.assessment-result {
+  margin-top: 16px;
+  padding: 15px;
+  border: 1px solid #c9ddd4;
+  border-radius: 11px;
+  background: rgb(255 253 248 / 58%);
+}
+
+.assessment-result .assessment-file-name {
+  margin: 0;
+}
+
+.assessment-summary {
+  margin: 10px 0 0;
+  color: #364f50;
+}
+
+.assessment-verdict,
+.assessment-check-status {
+  flex: 0 0 auto;
+  padding: 4px 7px;
+  border-radius: 999px;
+  font-size: 0.67rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.verdict-meets_requirements,
+.check-met {
+  background: #dfeee3;
+  color: #427253;
+}
+
+.verdict-needs_revision,
+.check-partially_met {
+  background: #f8e4c7;
+  color: #90641e;
+}
+
+.verdict-insufficient_information,
+.check-missing,
+.check-not_assessable {
+  background: #f8dfd4;
+  color: #9a4f40;
+}
+
+.assessment-check-list {
+  display: grid;
+  gap: 9px;
+  margin: 13px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.assessment-check-list li {
+  padding: 11px 12px;
+  border: 1px solid #dce6e1;
+  border-radius: 8px;
+  background: #f8fbf8;
+}
+
+.assessment-check-title strong,
+.assessment-notes strong {
+  color: #385152;
+  font-size: 0.77rem;
+}
+
+.assessment-check-list p {
+  margin: 6px 0 0;
+  color: #607473;
+  font-size: 0.74rem;
+  line-height: 1.6;
+}
+
+.assessment-check-list b {
+  color: #405757;
+}
+
+.assessment-notes {
+  margin-top: 13px;
+  padding-top: 12px;
+  border-top: 1px solid #dce6e1;
+}
+
+.assessment-notes ul {
+  display: grid;
+  gap: 5px;
+  margin: 8px 0 0;
+  padding-left: 18px;
+  color: #586e6d;
+  font-size: 0.75rem;
+  line-height: 1.55;
+}
+
+.assessment-caveat {
+  margin: 10px 0 0;
+  color: #8b675a;
 }
 
 .text-button {
@@ -1576,12 +1793,17 @@ const {
   .topbar,
   .hero-panel,
   .section-heading,
-  .plan-heading {
+  .plan-heading,
+  .assessment-upload-row {
     align-items: flex-start;
     flex-direction: column;
   }
 
   .plan-generate-button {
+    width: 100%;
+  }
+
+  .assessment-submit-button {
     width: 100%;
   }
 
