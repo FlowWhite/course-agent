@@ -1,15 +1,32 @@
-"""Task CRUD and task-driven learning-plan draft endpoints."""
+"""Task CRUD, planning, and non-destructive assignment-review endpoints."""
 
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
 
-from ...agent_runtime import generate_task_plan_draft
+from ...agent_runtime import (
+    generate_task_plan_draft,
+    generate_task_submission_assessment,
+)
 from ...app_logger import logger
-from ...course_material_service import search_course_documents_data
+from ...course_material_service import (
+    MAX_UPLOAD_BYTES,
+    sanitize_original_filename,
+    search_course_documents_data,
+)
+from ...document_parser import DocumentParseError, parse_document, validate_file_signature
 from ...learning_insight_service import create_learning_plan_data
-from ...models import PlanSource, TaskStatusUpdate, TaskUpdate, ToolResponse
+from ...models import (
+    PlanSource,
+    TaskStatusUpdate,
+    TaskSubmissionAssessmentResult,
+    TaskUpdate,
+    ToolResponse,
+)
 from ...postgres_data_service import (
     create_task_data,
     delete_task_data,
@@ -23,6 +40,73 @@ from ..schemas import TaskCreateRequest, TaskDeleteRequest
 
 
 router = APIRouter(prefix="/api/v1", tags=["tasks"])
+
+
+MAX_SUBMISSION_ASSESSMENT_CHARS = 28_000
+
+
+async def _save_submission_upload(
+    uploaded_file: UploadFile,
+    destination: Path,
+) -> int:
+    """Write one transient submission while enforcing the shared upload cap."""
+    total_size = 0
+    try:
+        with destination.open("xb") as target:
+            while chunk := await uploaded_file.read(1024 * 1024):
+                total_size += len(chunk)
+                if total_size > MAX_UPLOAD_BYTES:
+                    raise HTTPException(
+                        status_code=413,
+                        detail="单个作业文件不能超过 20 MB。",
+                    )
+                target.write(chunk)
+        if total_size == 0:
+            raise HTTPException(status_code=400, detail="不允许上传空文件。")
+        return total_size
+    finally:
+        await uploaded_file.close()
+
+
+def _submission_excerpt(chunks) -> tuple[str, bool]:
+    """Keep the model request bounded while retaining a submission's conclusion."""
+    submission_text = "\n\n".join(chunk.content for chunk in chunks).strip()
+    if len(submission_text) <= MAX_SUBMISSION_ASSESSMENT_CHARS:
+        return submission_text, False
+
+    head_length = 20_000
+    tail_length = MAX_SUBMISSION_ASSESSMENT_CHARS - head_length
+    return (
+        "\n\n".join(
+            [
+                submission_text[:head_length],
+                "[作业正文过长：中间内容未发送给评估器]",
+                submission_text[-tail_length:],
+            ]
+        ),
+        True,
+    )
+
+
+def _task_sources_for_assessment(user_id: int, task) -> list[PlanSource]:
+    """Fetch only current-course material excerpts relevant to the task."""
+    try:
+        results = search_course_documents_data(
+            user_id=user_id,
+            course=task.course_id,
+            query=task.title,
+        )
+    except ValueError:
+        results = []
+    return [
+        PlanSource(
+            file_id=result.file_id,
+            file_name=result.file_name,
+            page=result.page,
+            excerpt=result.content[:1_400],
+        )
+        for result in results
+    ]
 
 
 @router.get("/tasks")
@@ -225,5 +309,72 @@ def create_task_plan_api(
             content=ToolResponse(
                 success=False,
                 error="学习计划草案生成失败，请稍后重试。",
+            ).model_dump(mode="json"),
+        )
+
+
+@router.post("/tasks/{task_id}/assessment")
+async def assess_task_submission_api(
+    task_id: str,
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user),
+) -> dict:
+    """Assess a temporary uploaded submission against one owned task."""
+    user_id = int(current_user["id"])
+    task = get_task_detail_data(user_id=user_id, task_id=task_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="没有找到要评估的任务。")
+
+    original_filename = ""
+    try:
+        original_filename, file_type = sanitize_original_filename(file.filename)
+        with TemporaryDirectory(prefix="course-agent-submission-") as directory:
+            submission_path = Path(directory) / f"submission.{file_type}"
+            await _save_submission_upload(file, submission_path)
+            validate_file_signature(submission_path, file_type)
+            chunks = parse_document(submission_path, file_type)
+            submission_text, submission_truncated = _submission_excerpt(chunks)
+
+        sources = _task_sources_for_assessment(user_id, task)
+    except HTTPException:
+        raise
+    except (DocumentParseError, ValueError) as exc:
+        return JSONResponse(
+            status_code=400,
+            content=ToolResponse(success=False, error=str(exc)).model_dump(mode="json"),
+        )
+    except Exception:
+        logger.exception("作业文件读取失败：task_id=%s", task_id)
+        return JSONResponse(
+            status_code=500,
+            content=ToolResponse(
+                success=False,
+                error="作业文件读取失败，请检查文件后重试。",
+            ).model_dump(mode="json"),
+        )
+
+    try:
+        assessment = await run_in_threadpool(
+            generate_task_submission_assessment,
+            task=task.model_dump(mode="json"),
+            submission_text=submission_text,
+            sources=[source.model_dump(mode="json") for source in sources],
+        )
+        result = TaskSubmissionAssessmentResult(
+            **assessment.model_dump(mode="json"),
+            file_name=original_filename,
+            submission_truncated=submission_truncated,
+            sources=sources,
+        )
+        return ToolResponse(success=True, data=result.model_dump(mode="json")).model_dump(
+            mode="json"
+        )
+    except Exception:
+        logger.exception("作业评估失败：task_id=%s", task_id)
+        return JSONResponse(
+            status_code=502,
+            content=ToolResponse(
+                success=False,
+                error="作业评估暂时不可用，请稍后重试。",
             ).model_dump(mode="json"),
         )

@@ -46,6 +46,23 @@ class LearningPlanStepStatus(str, Enum):
     SKIPPED = "skipped"
 
 
+class SubmissionAssessmentVerdict(str, Enum):
+    """High-level conclusion for an uploaded assignment submission."""
+
+    MEETS_REQUIREMENTS = "meets_requirements"
+    NEEDS_REVISION = "needs_revision"
+    INSUFFICIENT_INFORMATION = "insufficient_information"
+
+
+class SubmissionRequirementStatus(str, Enum):
+    """How well one explicit task requirement is evidenced by a submission."""
+
+    MET = "met"
+    PARTIALLY_MET = "partially_met"
+    MISSING = "missing"
+    NOT_ASSESSABLE = "not_assessable"
+
+
 class CourseSummary(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -169,6 +186,43 @@ class TaskPlanDraft(BaseModel):
     goal: str = Field(min_length=1, max_length=500)
     prerequisite_knowledge: list[str] = Field(max_length=12)
     steps: list[GeneratedPlanStep] = Field(min_length=1, max_length=12)
+
+
+class SubmissionRequirementCheck(BaseModel):
+    """One explainable, requirement-level assignment review finding."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    requirement: str = Field(min_length=1, max_length=500)
+    status: SubmissionRequirementStatus
+    evidence: str = Field(min_length=1, max_length=1_200)
+    recommendation: str = Field(min_length=1, max_length=1_000)
+
+
+class TaskSubmissionAssessment(BaseModel):
+    """Strict model output for a non-destructive assignment review."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    verdict: SubmissionAssessmentVerdict
+    summary: str = Field(min_length=1, max_length=1_500)
+    requirement_checks: list[SubmissionRequirementCheck] = Field(
+        min_length=1,
+        max_length=12,
+    )
+    strengths: list[str] = Field(default_factory=list, max_length=8)
+    improvements: list[str] = Field(default_factory=list, max_length=8)
+    limitations: list[str] = Field(default_factory=list, max_length=6)
+
+
+class TaskSubmissionAssessmentResult(TaskSubmissionAssessment):
+    """Assignment-review output plus the local file and material context used."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    file_name: str = Field(min_length=1, max_length=255)
+    submission_truncated: bool = False
+    sources: list[PlanSource] = Field(default_factory=list, max_length=6)
 
 
 class LearningPlanStepRecord(GeneratedPlanStep):

@@ -76,6 +76,9 @@ export function useCourseWorkspace() {
   const plansLoading = ref(false)
   const planSaving = ref(false)
   const planError = ref("")
+  const taskAssessment = ref(null)
+  const assessmentSaving = ref(false)
+  const assessmentError = ref("")
 
   const selectedCourse = computed(() => {
     return courses.value.find(
@@ -290,6 +293,8 @@ export function useCourseWorkspace() {
     courseFiles.value = []
     risks.value = []
     taskPlan.value = null
+    taskAssessment.value = null
+    assessmentError.value = ""
     chatMessagesByCourse.value = {}
     chatMessages.value = []
     chatOpen.value = false
@@ -410,6 +415,8 @@ export function useCourseWorkspace() {
     selectedTaskId.value = ""
     taskFilter.value = "all"
     taskPlan.value = null
+    taskAssessment.value = null
+    assessmentError.value = ""
     chatInput.value = ""
     activateCourseAgentChat(courseId)
     await Promise.all([
@@ -450,6 +457,8 @@ export function useCourseWorkspace() {
 
   async function loadTaskDetail(taskId) {
     selectedTaskId.value = taskId
+    taskAssessment.value = null
+    assessmentError.value = ""
 
     try {
       const task = await requestJson(
@@ -619,18 +628,15 @@ export function useCourseWorkspace() {
     }
   }
 
-  async function changePlanState(action, stepId = "") {
+  async function confirmTaskPlan() {
     if (!taskPlan.value || planSaving.value) {
       return
     }
     planSaving.value = true
     planError.value = ""
-    const suffix = action === "complete"
-      ? `/steps/${encodeURIComponent(stepId)}/complete`
-      : `/${action}`
     try {
       taskPlan.value = await requestJson(
-        `/api/v1/plans/${encodeURIComponent(taskPlan.value.id)}${suffix}`,
+        `/api/v1/plans/${encodeURIComponent(taskPlan.value.id)}/confirm`,
         { method: "POST" },
         "学习计划状态更新失败",
       )
@@ -639,6 +645,29 @@ export function useCourseWorkspace() {
       planError.value = exception.message
     } finally {
       planSaving.value = false
+    }
+  }
+
+  async function assessTaskSubmission(file) {
+    if (!selectedTask.value || !file || assessmentSaving.value) {
+      return
+    }
+
+    const formData = new FormData()
+    formData.append("file", file)
+    assessmentSaving.value = true
+    assessmentError.value = ""
+    try {
+      taskAssessment.value = await requestJson(
+        `/api/v1/tasks/${encodeURIComponent(selectedTask.value.id)}/assessment`,
+        { method: "POST", body: formData },
+        "作业评估失败",
+      )
+      showNotice("success", "作业已完成评估，请根据建议自行修改。")
+    } catch (exception) {
+      assessmentError.value = exception.message
+    } finally {
+      assessmentSaving.value = false
     }
   }
 
@@ -993,11 +1022,12 @@ export function useCourseWorkspace() {
     deleteSaving, chatOpen, chatInput, chatSending, chatMessages, materialsOpen,
     courseFiles, filesLoading, fileUploading, fileError, risksOpen, risks,
     risksLoading, risksError, taskPlan, plansLoading, planSaving, planError,
+    taskAssessment, assessmentSaving, assessmentError,
     selectedCourse, selectedTask, filteredTasks, todoCount, doneCount, formTitle,
     deleteConfirmationText, activateCourseAgentChat, login, switchAuthMode,
     register, logout, loadCourses, selectCourse, loadTasks, loadTaskDetail,
     loadCourseFiles, uploadCourseFile, deleteCourseFile, loadRisks, loadTaskPlans,
-    generateTaskPlan, changePlanState, updateTaskStatus, openCreate, openEdit,
+    generateTaskPlan, confirmTaskPlan, assessTaskSubmission, updateTaskStatus, openCreate, openEdit,
     closeForm, submitTaskForm, openDeleteDialog, closeDeleteDialog, confirmDelete,
     toggleChat, sendChat, statusLabel, priorityLabel, courseInitials, priorityClass,
     fileSizeLabel, parseStatusLabel, planStatusLabel, riskLevelLabel,

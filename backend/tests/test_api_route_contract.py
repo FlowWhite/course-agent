@@ -25,6 +25,7 @@ class ApiRouteContractTests(unittest.TestCase):
             ("DELETE", "/api/v1/tasks/test-task"),
             ("PATCH", "/api/v1/tasks/test-task/status"),
             ("POST", "/api/v1/tasks/test-task/plan"),
+            ("POST", "/api/v1/tasks/test-task/assessment"),
             ("GET", "/api/v1/plans"),
             ("GET", "/api/v1/plans/test-plan"),
             ("POST", "/api/v1/plans/test-plan/confirm"),
