@@ -43,9 +43,11 @@ JWT 验证用户
   ↓
 保存 document_chunks
   ↓
-更新文件解析状态
+更新文件解析状态与全文检索数据
   ↓
-返回文件信息
+在线程池中尝试建立 Embedding 向量索引
+  ↓
+返回文件、解析和向量索引状态
 ~~~
 
 下面按照这条链路，从上传接口开始。
@@ -508,7 +510,7 @@ def create_course_file_data(
 DocumentParseStatus.PENDING.value
 ~~~
 
-初始化了文件的状态为pending，但这只是一个比较短暂的状态，表示文件已经写入，但是尚未开始解析。
+初始化了文件的状态为 `pending`，但这只是一个比较短暂的状态，表示文件已经写入，但是尚未开始解析。随后 `set_course_file_parsing_data()` 会把状态改为 `parsing`。
 
 回到upload_course_file_api中，接下来的
 
@@ -920,7 +922,7 @@ SET
 
 更新course_files数据库。这个时候解析状态变成了parsed，重置了embedding状态
 
-因为文本块已经重新生成，旧Embedding对应的是旧文本，所以必须将Embedding状态重置，等待后续重新建立向量索引。
+因为文本块已经重新生成，旧 Embedding 对应的是旧文本，所以必须将 Embedding 状态重置为 `not_indexed`，再建立新的向量索引。
 
 最后:
 
@@ -946,7 +948,25 @@ return fetched[0]
 
 ## 9. 这一部分和 RAG 的连接
 
-到了这里，原始文件已经变成了保存在document_chunks中的文本块。后续的Embedding和检索会继续使用这些文本块，但属于下一部分的内容。
+到了这里，原始文件已经变成了保存在 `document_chunks` 中的文本块，并同时生成 PostgreSQL 全文检索用的 `search_vector`。当前上传接口在解析成功后还会执行：
+
+~~~python
+course_file = await run_in_threadpool(
+    index_course_file_embeddings_data,
+    user_id=user_id,
+    file_id=course_file.id,
+)
+~~~
+
+这里不是后台任务：接口会等待线程池中的索引尝试完成后再返回。Embedding 使用独立配置的 OpenAI 兼容客户端，默认模型为 `text-embedding-v4`，第一版固定使用 1024 维向量，写入同一 PostgreSQL 中的 `document_chunks.embedding`。
+
+若解析成功但 Embedding 配置缺失、服务失败或向量无效，原始文件和已解析文本块仍然保留，`embedding_status` 会变为 `failed`，前端可调用：
+
+~~~text
+POST /api/v1/files/{file_id}/index
+~~~
+
+重试建立索引。检索时系统优先使用已就绪的向量；Embedding 服务不可用或没有可用向量时，会回退到 `search_vector` 和文本匹配的全文检索。因此解析成功并不依赖向量服务，但向量索引是否成功会直接反映在返回的文件状态中。
 
 回到开头的完整链路，可以把这一篇压缩成：
 
@@ -956,5 +976,7 @@ HTTP上传请求
 → 保存文件元数据和状态
 → 按文件类型提取文字
 → 切分并保存文本块
-→ 为后续 RAG 准备数据
+→ 生成全文检索数据并更新解析状态
+→ 尝试建立向量索引
+→ 为课程 Agent、学习计划和作业评估提供带来源的检索数据
 ~~~

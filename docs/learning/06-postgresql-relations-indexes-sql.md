@@ -1,5 +1,5 @@
 # 第 6 篇：PostgreSQL——表关系、约束、索引与参数化 SQL
-## 1. 用户、课程、任务三张表
+## 1. 用户、课程、任务三张核心表
 ```sql
 CREATE TABLE IF NOT EXISTS users (
     id BIGSERIAL PRIMARY KEY,
@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS tasks (
 );
 ```
 
-在postgres中的init.sql文件中创建的这三张表就是用户，课程，任务。它们的关系是:
+`postgres/init.sql` 中首先定义这三张核心表：用户、课程和任务。它们的关系是:
 一个用户可以有多门课程
 一个用户可以有多个任务
 一门课程可以有多个任务
@@ -248,3 +248,34 @@ JOIN tasks 和 courses
 Vue 显示任务
 ```
 PostgreSQL 不只是保存数据，还通过主键、外键、检查约束和索引保证数据关系、数据合法性以及查询效率。
+
+## 10. 当前 schema 的后续扩展
+
+本篇先聚焦任务查询所需的三张核心表；当前项目的 `postgres/init.sql` 还定义了以下表和索引：
+
+```text
+course_files
+  保存按 user_id、course_id 隔离的原始资料元数据、解析状态和向量索引状态。
+
+document_chunks
+  保存资料解析后的文本块、页码、PostgreSQL 全文检索向量和可选 Embedding。
+
+learning_plans / learning_plan_steps
+  保存用户确认前后的学习计划及其步骤状态。
+```
+
+资料检索直接使用 PostgreSQL 的 pgvector，而不是额外部署一个独立向量数据库：
+
+```sql
+CREATE EXTENSION IF NOT EXISTS vector;
+
+-- document_chunks 中保存固定 1024 维向量
+embedding VECTOR(1024)
+
+-- 只为已生成向量的文本块建立余弦距离 HNSW 索引
+CREATE INDEX idx_document_chunks_embedding_hnsw
+    ON document_chunks USING hnsw (embedding vector_cosine_ops)
+    WHERE embedding IS NOT NULL;
+```
+
+因此，任务查询仍主要使用本篇介绍的关系和 B-tree 索引；课程资料问答则会优先按向量检索，在向量服务未配置或不可用时回退到全文检索。
