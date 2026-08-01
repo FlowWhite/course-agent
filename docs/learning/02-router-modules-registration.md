@@ -6,7 +6,7 @@
 
 ## 2. Router 是什么
 
-Router 可以理解为一组相关 HTTP 接口的集合。例如在 `task.py` 文件的相关位置，我们可以看见：
+Router 可以理解为一组相关 HTTP 接口的集合。例如在 `tasks.py` 文件的相关位置，我们可以看见：
 
 ```python
 router = APIRouter(
@@ -26,7 +26,7 @@ app = FastAPI()
 router = APIRouter()
 ```
 
-它们的关系就是 Router 包含在 App 中，就像公司和部门。
+它们的关系是 Router 被注册到 App 中，就像公司的部门被纳入公司整体。
 
 在 `main` 中最后有：
 

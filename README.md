@@ -162,7 +162,7 @@ git diff --cached --name-only
 
 ## 当前边界与路线图
 
-当前版本刻意不引入向量数据库、OCR、LangGraph、多 Agent、MCP 或自动修改任务的工作流。
+当前版本已使用 PostgreSQL 的 pgvector 承载资料向量检索，但刻意不引入独立的向量数据库服务、OCR、LangGraph、多 Agent、MCP 或自动修改任务的工作流。
 
 下一阶段重点：
 
