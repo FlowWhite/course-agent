@@ -19,7 +19,7 @@ def create_access_token(
 
     now = datetime.now(timezone.utc)
     expire_at = now + timedelta(
-        minutes=expire_minutes     
+        minutes=expire_minutes
     )
 
     payload = {

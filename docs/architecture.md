@@ -626,4 +626,3 @@ PostgreSQL 有 Compose healthcheck。后端 `/health` 只表示 FastAPI 进程�
 | Tracing | 未实现 |
 | 自动化测试 | 基础实现 |
 | Docker Compose 部署 | 基础实现 |
-
