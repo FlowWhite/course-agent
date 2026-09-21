@@ -16,17 +16,17 @@ const {
   taskFilter, loading, tasksLoading, error, taskError, notice, formMode,
   formSaving, formError, taskForm, deleteDialogOpen, deleteInput, deleteError,
   deleteSaving, chatOpen, chatInput, chatSending, chatMessages, materialsOpen,
-  courseFiles, filesLoading, fileUploading, fileError, risksOpen, risks,
+  courseFiles, filesLoading, fileUploading, fileIndexing, fileError, risksOpen, risks,
   risksLoading, risksError, taskPlan, plansLoading, planSaving, planError,
   taskAssessment, assessmentSaving, assessmentError,
   selectedCourse, selectedTask, filteredTasks, todoCount, doneCount, formTitle,
   deleteConfirmationText, activateCourseAgentChat, login, switchAuthMode,
   register, logout, selectCourse, loadTaskDetail, loadCourseFiles, uploadCourseFile,
-  deleteCourseFile, loadRisks, generateTaskPlan, confirmTaskPlan, assessTaskSubmission,
+  retryCourseFileIndex, deleteCourseFile, loadRisks, generateTaskPlan, confirmTaskPlan, assessTaskSubmission,
   updateTaskStatus, openCreate, openEdit, closeForm, submitTaskForm,
   openDeleteDialog, closeDeleteDialog, confirmDelete, toggleChat, sendChat,
   statusLabel, priorityLabel, courseInitials, priorityClass, fileSizeLabel,
-  parseStatusLabel, planStatusLabel, riskLevelLabel,
+  parseStatusLabel, embeddingStatusLabel, planStatusLabel, riskLevelLabel,
 } = useCourseWorkspace()
 </script>
 
@@ -151,11 +151,14 @@ const {
       :course-files="courseFiles"
       :files-loading="filesLoading"
       :file-uploading="fileUploading"
+      :file-indexing="fileIndexing"
       :file-error="fileError"
       :file-size-label="fileSizeLabel"
       :parse-status-label="parseStatusLabel"
+      :embedding-status-label="embeddingStatusLabel"
       @close="materialsOpen = false"
       @upload="uploadCourseFile"
+      @index="retryCourseFileIndex"
       @delete="deleteCourseFile"
     />
 
@@ -1348,6 +1351,20 @@ const {
   white-space: pre-wrap;
 }
 
+.chat-message .chat-sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  margin-top: 8px;
+  color: #66747e;
+  font-size: 0.72rem;
+  white-space: normal;
+}
+
+.chat-sources span:not(:last-child)::after {
+  content: "、";
+}
+
 .typing-dots {
   color: #8a918d;
 }
@@ -1693,6 +1710,13 @@ const {
   margin-top: 4px;
   color: #7f8992;
   font-size: 0.73rem;
+}
+
+.material-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 8px;
+  margin-left: 12px;
 }
 
 .material-error {

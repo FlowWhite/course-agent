@@ -42,7 +42,7 @@ def login_api(request: LoginRequest) -> dict:
             data={
                 "access_token": access_token,
                 "token_type": "bearer",
-                "user": user,
+                  "user": user,
             },
         ).model_dump(mode="json")
     except Exception:

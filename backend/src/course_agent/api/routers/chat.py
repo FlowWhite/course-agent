@@ -7,10 +7,13 @@ from agents.exceptions import MaxTurnsExceeded, ModelBehaviorError
 from ...agent_runtime import (
     create_course_agent,
     create_session,
+    get_current_agent_document_sources,
     reset_current_agent_course_id,
+    reset_current_agent_document_sources,
     reset_current_agent_user_id,
     run_agent_message,
     set_current_agent_course_id,
+    set_current_agent_document_sources,
     set_current_agent_user_id,
 )
 from ...app_logger import logger
@@ -53,6 +56,7 @@ def chat_api(
         raise HTTPException(status_code=404, detail="没有找到当前课程。")
     user_token = set_current_agent_user_id(user_id)
     course_token = set_current_agent_course_id(course.id)
+    source_token = set_current_agent_document_sources()
     try:
         agent = get_runtime_agent(course.id, course.name)
         session = create_session(
@@ -69,6 +73,10 @@ def chat_api(
                 "session_id": request.session_id,
                 "course_id": course.id,
                 "reply": result.final_output,
+                "sources": [
+                    source.model_dump(mode="json")
+                    for source in get_current_agent_document_sources()
+                ],
             },
         ).model_dump(mode="json")
     except MaxTurnsExceeded:
@@ -88,5 +96,6 @@ def chat_api(
             error="Agent 对话处理失败。",
         ).model_dump(mode="json")
     finally:
+        reset_current_agent_document_sources(source_token)
         reset_current_agent_course_id(course_token)
         reset_current_agent_user_id(user_token)

@@ -15,7 +15,7 @@ Course Agent 是一个面向课程任务执行的学习工作台。它把课程�
 ## 核心能力
 
 - 课程任务管理：注册、登录、JWT 鉴权、任务增删改查与状态切换。
-- 课程资料检索：支持 PDF、DOCX、TXT、Markdown；后端本地解析并按用户、课程隔离保存。
+- 课程资料 RAG：支持 PDF、DOCX、TXT、Markdown；后端本地解析、分块并按用户、课程隔离保存，使用 pgvector 进行向量优先检索。
 - 资料增强 Agent：仅检索当前课程资料与任务，回答时提供文件名与页码等来源信息。
 - 截止日期风险雷达：以确定性规则计算剩余天数、优先级、计划工作量、计划冲突与资料要求的风险。
 - 可确认学习计划：先生成草案，再由用户确认启动；计划不会自动修改任务状态。
@@ -30,12 +30,13 @@ flowchart LR
     W --> A["FastAPI API"]
     A --> P[("PostgreSQL")]
     A --> F["Docker 挂载的课程文件"]
-    A --> X["本地解析与全文检索"]
+    A --> X["本地解析、分块与 pgvector 检索"]
+    X --> E["百炼 text-embedding-v4"]
     X --> D["DeepSeek V4 Flash"]
     D --> A
 ```
 
-原始 PDF 不会直接发送给模型：后端先提取文本、按页/段分块并保存检索来源；只有与当前问题有关的片段会作为课程参考提供给 Agent。
+原始 PDF 不会直接发送给模型：后端先提取文本、按页/段分块并保存检索来源；只有与当前问题有关的片段会作为课程参考提供给 Agent。Embedding 使用独立的百炼兼容配置，不复用 DeepSeek 聊天密钥或客户端。
 
 ## 隐私与安全
 
@@ -46,9 +47,9 @@ flowchart LR
 
 ## 技术栈
 
-- 后端：Python、FastAPI、OpenAI Agents SDK、DeepSeek V4 Flash
+- 后端：Python、FastAPI、OpenAI Agents SDK、DeepSeek V4 Flash、OpenAI 兼容 Embeddings API
 - 前端：Vue 3、Vite
-- 数据与部署：PostgreSQL、Docker Compose
+- 数据与部署：PostgreSQL 16、pgvector、Docker Compose
 - 文档解析：pypdf、python-docx
 
 ## 项目结构
@@ -85,7 +86,7 @@ flowchart LR
 Copy-Item .env.example .env
 ```
 
-至少设置 `DEEPSEEK_API_KEY`、`POSTGRES_PASSWORD` 和 `JWT_SECRET_KEY`。`.env` 已被 Git 忽略，不能提交到仓库。
+至少设置 `DEEPSEEK_API_KEY`、`EMBEDDING_BASE_URL`、`EMBEDDING_API_KEY`、`POSTGRES_PASSWORD` 和 `JWT_SECRET_KEY`。Embedding 默认使用 `text-embedding-v4` 与 1024 维向量；聊天模型仍使用 DeepSeek。`.env` 已被 Git 忽略，不能提交到仓库。
 
 本地直接运行后端时，先以 editable mode 安装包：
 
@@ -106,7 +107,7 @@ docker compose up --build
 
 `docker-compose.yml` 将 PostgreSQL 仅绑定到本机 `127.0.0.1`，供本地开发使用。部署到公网时，不要将数据库端口暴露到互联网；应通过内部网络、访问控制和备份策略管理数据库。
 
-> 如果本机已经存在旧版 PostgreSQL 数据卷，`postgres/init.sql` 不会自动重新执行。升级到用户隔离版本前，请先备份数据库，再人工检查并执行 `scripts/migrations/001_user_scope.sql`，为所有旧课程和任务指定明确的 `user_id`。旧版 SQLite 迁移脚本还需要设置 `LEGACY_OWNER_USER_ID`，避免把历史数据无意间分配给错误用户。不要使用 `docker compose down -v` 代替迁移，它会删除本地 PostgreSQL 数据卷。
+> 如果本机已经存在旧版 PostgreSQL 数据卷，应用启动会执行 `postgres/init.sql` 中的增量 schema 检查，并为 RAG 添加 `vector` 扩展、向量列和索引。升级前仍应先备份数据卷，并确认 pgvector 镜像能读取当前 PostgreSQL 16 数据目录；不要使用 `docker compose down -v` 代替迁移，它会删除本地 PostgreSQL 数据卷。现有已解析资料会保留全文检索，需由所属用户在资料面板中单独建立向量索引，系统不会在启动时自动请求 Embedding 服务。
 
 新注册用户默认只能看到属于自己的课程和任务；如果课程列表为空，需要由课程创建/导入流程为该用户建立课程，不能直接依赖另一用户的演示数据。
 

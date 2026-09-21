@@ -65,6 +65,7 @@ export function useCourseWorkspace() {
   const courseFiles = ref([])
   const filesLoading = ref(false)
   const fileUploading = ref(false)
+  const fileIndexing = ref(false)
   const fileError = ref("")
 
   const risksOpen = ref(false)
@@ -529,15 +530,47 @@ export function useCourseWorkspace() {
       )
       courseFiles.value.unshift(uploaded)
       showNotice(
-        uploaded.parse_status === "parsed" ? "success" : "error",
-        uploaded.parse_status === "parsed"
-          ? "课程资料已上传并完成解析。"
+        uploaded.parse_status === "parsed" && uploaded.embedding_status === "ready" ? "success" : "error",
+        uploaded.parse_status === "parsed" && uploaded.embedding_status === "ready"
+          ? "课程资料已上传、解析并完成向量索引。"
+          : uploaded.parse_status === "parsed"
+            ? `课程资料已解析，但向量索引未就绪：${uploaded.embedding_error || "可稍后重试。"}`
           : `文件已保存，但解析失败：${uploaded.parse_error || "请检查文件。"}`,
       )
     } catch (exception) {
       fileError.value = exception.message
     } finally {
       fileUploading.value = false
+    }
+  }
+
+  async function retryCourseFileIndex(courseFile) {
+    if (!courseFile || fileIndexing.value || courseFile.embedding_status === "ready") {
+      return
+    }
+
+    fileIndexing.value = true
+    fileError.value = ""
+    try {
+      const updated = await requestJson(
+        `/api/v1/files/${encodeURIComponent(courseFile.id)}/index`,
+        { method: "POST" },
+        "课程资料向量索引失败",
+      )
+      const index = courseFiles.value.findIndex((item) => item.id === updated.id)
+      if (index >= 0) {
+        courseFiles.value.splice(index, 1, updated)
+      }
+      showNotice(
+        updated.embedding_status === "ready" ? "success" : "error",
+        updated.embedding_status === "ready"
+          ? "课程资料已完成向量索引。"
+          : `课程资料仍未完成向量索引：${updated.embedding_error || "请稍后重试。"}`,
+      )
+    } catch (exception) {
+      fileError.value = exception.message
+    } finally {
+      fileIndexing.value = false
     }
   }
 
@@ -937,6 +970,7 @@ export function useCourseWorkspace() {
       messages.push({
         role: "assistant",
         content: data.reply,
+        sources: data.sources || [],
       })
     } catch (exception) {
       messages.push({
@@ -987,6 +1021,16 @@ export function useCourseWorkspace() {
     return labels[status] || status
   }
 
+  function embeddingStatusLabel(status) {
+    const labels = {
+      not_indexed: "等待索引",
+      indexing: "正在建立向量索引",
+      ready: "向量索引已就绪",
+      failed: "向量索引失败",
+    }
+    return labels[status] || "索引状态未知"
+  }
+
   function planStatusLabel(status) {
     const labels = {
       awaiting_confirmation: "等待确认",
@@ -1020,16 +1064,16 @@ export function useCourseWorkspace() {
     taskFilter, loading, tasksLoading, error, taskError, notice, formMode,
     formSaving, formError, taskForm, deleteDialogOpen, deleteInput, deleteError,
     deleteSaving, chatOpen, chatInput, chatSending, chatMessages, materialsOpen,
-    courseFiles, filesLoading, fileUploading, fileError, risksOpen, risks,
+    courseFiles, filesLoading, fileUploading, fileIndexing, fileError, risksOpen, risks,
     risksLoading, risksError, taskPlan, plansLoading, planSaving, planError,
     taskAssessment, assessmentSaving, assessmentError,
     selectedCourse, selectedTask, filteredTasks, todoCount, doneCount, formTitle,
     deleteConfirmationText, activateCourseAgentChat, login, switchAuthMode,
     register, logout, loadCourses, selectCourse, loadTasks, loadTaskDetail,
-    loadCourseFiles, uploadCourseFile, deleteCourseFile, loadRisks, loadTaskPlans,
+    loadCourseFiles, uploadCourseFile, retryCourseFileIndex, deleteCourseFile, loadRisks, loadTaskPlans,
     generateTaskPlan, confirmTaskPlan, assessTaskSubmission, updateTaskStatus, openCreate, openEdit,
     closeForm, submitTaskForm, openDeleteDialog, closeDeleteDialog, confirmDelete,
     toggleChat, sendChat, statusLabel, priorityLabel, courseInitials, priorityClass,
-    fileSizeLabel, parseStatusLabel, planStatusLabel, riskLevelLabel,
+    fileSizeLabel, parseStatusLabel, embeddingStatusLabel, planStatusLabel, riskLevelLabel,
   }
 }
