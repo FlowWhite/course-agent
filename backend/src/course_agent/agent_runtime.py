@@ -26,7 +26,8 @@ from .tools import (
     search_course_documents,
     list_deadline_risks,
 )
-from .models import TaskPlanDraft, TaskSubmissionAssessment
+from .environment import load_project_env
+from .models import PlanSource, TaskPlanDraft, TaskSubmissionAssessment
 from .paths import PROJECT_ROOT
 
 
@@ -44,6 +45,10 @@ _agent_user_id: ContextVar[int | None] = ContextVar(
 )
 _agent_course_id: ContextVar[str | None] = ContextVar(
     "agent_course_id",
+    default=None,
+)
+_agent_document_sources: ContextVar[list[PlanSource] | None] = ContextVar(
+    "agent_document_sources",
     default=None,
 )
 
@@ -83,36 +88,33 @@ def get_current_agent_course_id() -> str:
     return course_id
 
 
-def load_project_env() -> None:
-    """从项目根目录的 .env 加载本地配置。"""
-    env_path = PROJECT_ROOT / ".env"
+def set_current_agent_document_sources() -> Token:
+    """Start collecting deterministic citations for one Agent chat request."""
+    return _agent_document_sources.set([])
 
-    if not env_path.exists():
+
+def reset_current_agent_document_sources(token: Token) -> None:
+    _agent_document_sources.reset(token)
+
+
+def add_current_agent_document_sources(sources: list[PlanSource]) -> None:
+    collected = _agent_document_sources.get()
+    if collected is None:
         return
 
-    for line in env_path.read_text(
-        encoding="utf-8"
-    ).splitlines():
-        line = line.strip()
+    existing_keys = {
+        (source.chunk_id, source.file_id, source.page, source.chunk_index)
+        for source in collected
+    }
+    for source in sources:
+        key = (source.chunk_id, source.file_id, source.page, source.chunk_index)
+        if key not in existing_keys:
+            collected.append(source)
+            existing_keys.add(key)
 
-        if (
-            not line
-            or line.startswith("#")
-            or "=" not in line
-        ):
-            continue
 
-        key, value = line.split(
-            "=",
-            maxsplit=1,
-        )
-
-        key = key.strip()
-        value = value.strip()
-        value = value.strip('"').strip("'")
-
-        if key:
-            os.environ.setdefault(key, value)
+def get_current_agent_document_sources() -> list[PlanSource]:
+    return list(_agent_document_sources.get() or [])
 
 
 def configure_model() -> None:

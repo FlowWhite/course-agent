@@ -4,6 +4,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
+from starlette.concurrency import run_in_threadpool
 
 from ...app_logger import logger
 from ...course_material_service import (
@@ -14,6 +15,7 @@ from ...course_material_service import (
     delete_course_file_data,
     get_course_file_data,
     get_owned_file_storage_data,
+    index_course_file_embeddings_data,
     list_course_files_data,
     replace_document_chunks_data,
     sanitize_original_filename,
@@ -110,6 +112,12 @@ async def upload_course_file_api(
                 file_id=course_file.id,
                 error="文件解析失败，请检查文件是否损坏。",
             )
+        else:
+            course_file = await run_in_threadpool(
+                index_course_file_embeddings_data,
+                user_id=user_id,
+                file_id=course_file.id,
+            )
         return ToolResponse(
             success=True,
             data=course_file.model_dump(mode="json"),
@@ -132,6 +140,42 @@ async def upload_course_file_api(
             content=ToolResponse(
                 success=False,
                 error="课程文件上传失败。",
+            ).model_dump(mode="json"),
+        )
+
+
+@router.post("/files/{file_id}/index")
+async def index_course_file_api(
+    file_id: str,
+    current_user: dict = Depends(get_current_user),
+) -> dict:
+    """Create or retry the vector index for one owned, already parsed file."""
+    user_id = int(current_user["id"])
+    normalized_file_id = file_id.strip()
+    if not normalized_file_id:
+        raise HTTPException(status_code=404, detail="没有找到课程文件。")
+    try:
+        course_file = await run_in_threadpool(
+            index_course_file_embeddings_data,
+            user_id=user_id,
+            file_id=normalized_file_id,
+        )
+        return ToolResponse(
+            success=True,
+            data=course_file.model_dump(mode="json"),
+        ).model_dump(mode="json")
+    except ValueError as exc:
+        return JSONResponse(
+            status_code=400,
+            content=ToolResponse(success=False, error=str(exc)).model_dump(mode="json"),
+        )
+    except Exception:
+        logger.exception("课程文件向量索引失败：file_id=%s", normalized_file_id)
+        return JSONResponse(
+            status_code=500,
+            content=ToolResponse(
+                success=False,
+                error="课程文件向量索引失败。",
             ).model_dump(mode="json"),
         )
 

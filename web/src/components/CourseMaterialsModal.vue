@@ -4,12 +4,14 @@ defineProps({
   courseFiles: { type: Array, required: true },
   filesLoading: { type: Boolean, required: true },
   fileUploading: { type: Boolean, required: true },
+  fileIndexing: { type: Boolean, required: true },
   fileError: { type: String, required: true },
   fileSizeLabel: { type: Function, required: true },
   parseStatusLabel: { type: Function, required: true },
+  embeddingStatusLabel: { type: Function, required: true },
 })
 
-const emit = defineEmits(["close", "upload", "delete"])
+const emit = defineEmits(["close", "upload", "index", "delete"])
 </script>
 
 <template>
@@ -34,10 +36,20 @@ const emit = defineEmits(["close", "upload", "delete"])
         <li v-for="courseFile in courseFiles" :key="courseFile.id">
           <div>
             <strong>{{ courseFile.original_filename }}</strong>
-            <small>{{ courseFile.file_type.toUpperCase() }} · {{ fileSizeLabel(courseFile.file_size) }} · {{ parseStatusLabel(courseFile.parse_status) }}</small>
+            <small>{{ courseFile.file_type.toUpperCase() }} · {{ fileSizeLabel(courseFile.file_size) }} · {{ parseStatusLabel(courseFile.parse_status) }} · {{ embeddingStatusLabel(courseFile.embedding_status) }}</small>
             <p v-if="courseFile.parse_error" class="material-error">{{ courseFile.parse_error }}</p>
+            <p v-else-if="courseFile.embedding_error" class="material-error">{{ courseFile.embedding_error }}</p>
           </div>
-          <button class="text-button danger-text" type="button" @click="emit('delete', courseFile)">删除</button>
+          <div class="material-actions">
+            <button
+              v-if="courseFile.parse_status === 'parsed' && courseFile.embedding_status !== 'ready'"
+              class="text-button"
+              type="button"
+              :disabled="fileIndexing || courseFile.embedding_status === 'indexing'"
+              @click="emit('index', courseFile)"
+            >{{ courseFile.embedding_status === 'indexing' ? '正在索引…' : '重试向量索引' }}</button>
+            <button class="text-button danger-text" type="button" @click="emit('delete', courseFile)">删除</button>
+          </div>
         </li>
       </ul>
       <p v-else class="plan-muted">还没有课程资料。上传后，Agent 会仅检索相关片段作为参考。</p>

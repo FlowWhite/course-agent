@@ -1,3 +1,5 @@
+CREATE EXTENSION IF NOT EXISTS vector;
+
 CREATE TABLE IF NOT EXISTS users (
     id BIGSERIAL PRIMARY KEY,
     username TEXT NOT NULL UNIQUE,
@@ -47,6 +49,12 @@ CREATE TABLE IF NOT EXISTS course_files (
     sha256 TEXT NOT NULL,
     parse_status TEXT NOT NULL CHECK (parse_status IN ('pending', 'parsing', 'parsed', 'failed')),
     parse_error TEXT,
+    embedding_status TEXT NOT NULL DEFAULT 'not_indexed'
+        CHECK (embedding_status IN ('not_indexed', 'indexing', 'ready', 'failed')),
+    embedding_error TEXT,
+    embedding_model TEXT,
+    embedding_dimension INTEGER,
+    embedded_at TIMESTAMPTZ,
     extracted_char_count INTEGER NOT NULL DEFAULT 0 CHECK (extracted_char_count >= 0),
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -62,6 +70,7 @@ CREATE TABLE IF NOT EXISTS document_chunks (
     chunk_index INTEGER NOT NULL CHECK (chunk_index >= 0),
     content TEXT NOT NULL,
     search_vector TSVECTOR NOT NULL,
+    embedding VECTOR(1024),
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(file_id, chunk_index)
 );
@@ -71,6 +80,41 @@ CREATE INDEX IF NOT EXISTS idx_document_chunks_file_id
 
 CREATE INDEX IF NOT EXISTS idx_document_chunks_search_vector
     ON document_chunks USING GIN(search_vector);
+
+ALTER TABLE course_files
+    ADD COLUMN IF NOT EXISTS embedding_status TEXT NOT NULL DEFAULT 'not_indexed';
+
+ALTER TABLE course_files
+    ADD COLUMN IF NOT EXISTS embedding_error TEXT;
+
+ALTER TABLE course_files
+    ADD COLUMN IF NOT EXISTS embedding_model TEXT;
+
+ALTER TABLE course_files
+    ADD COLUMN IF NOT EXISTS embedding_dimension INTEGER;
+
+ALTER TABLE course_files
+    ADD COLUMN IF NOT EXISTS embedded_at TIMESTAMPTZ;
+
+ALTER TABLE document_chunks
+    ADD COLUMN IF NOT EXISTS embedding VECTOR(1024);
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conname = 'course_files_embedding_status_check'
+    ) THEN
+        ALTER TABLE course_files
+            ADD CONSTRAINT course_files_embedding_status_check
+            CHECK (embedding_status IN ('not_indexed', 'indexing', 'ready', 'failed'));
+    END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_document_chunks_embedding_hnsw
+    ON document_chunks USING hnsw (embedding vector_cosine_ops)
+    WHERE embedding IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS learning_plans (
     id TEXT PRIMARY KEY,

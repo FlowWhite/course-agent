@@ -23,6 +23,13 @@ class DocumentParseStatus(str, Enum):
     FAILED = "failed"
 
 
+class DocumentEmbeddingStatus(str, Enum):
+    NOT_INDEXED = "not_indexed"
+    INDEXING = "indexing"
+    READY = "ready"
+    FAILED = "failed"
+
+
 class RiskLevel(str, Enum):
     LOW = "low"
     MEDIUM = "medium"
@@ -144,6 +151,11 @@ class CourseFileRecord(BaseModel):
     sha256: str
     parse_status: DocumentParseStatus
     parse_error: str | None = None
+    embedding_status: DocumentEmbeddingStatus
+    embedding_error: str | None = None
+    embedding_model: str | None = None
+    embedding_dimension: int | None = Field(default=None, ge=1)
+    embedded_at: datetime | None = None
     extracted_char_count: int = Field(ge=0)
     chunk_count: int = Field(ge=0)
     created_at: datetime
@@ -152,6 +164,8 @@ class CourseFileRecord(BaseModel):
 class DocumentSearchResult(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    chunk_id: str
+    chunk_index: int = Field(ge=0)
     file_id: str
     file_name: str
     page: int | None = None
@@ -162,6 +176,8 @@ class DocumentSearchResult(BaseModel):
 class PlanSource(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    chunk_id: str | None = None
+    chunk_index: int | None = Field(default=None, ge=0)
     file_id: str
     file_name: str
     page: int | None = None

@@ -10,7 +10,16 @@ from uuid import uuid4
 from psycopg.rows import dict_row
 
 from .document_parser import ParsedChunk
+from .embedding_service import (
+    EMBEDDING_DIMENSION,
+    EmbeddingConfigurationError,
+    EmbeddingServiceError,
+    EmbeddingSettings,
+    embed_texts,
+    get_embedding_settings,
+)
 from .models import (
+    DocumentEmbeddingStatus,
     CourseFileRecord,
     DocumentParseStatus,
     DocumentSearchResult,
@@ -19,6 +28,8 @@ from .paths import UPLOAD_ROOT
 from .postgres_database import get_postgres_connection
 
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024
+MAX_EMBEDDING_CHUNKS_PER_FILE = 512
+MIN_VECTOR_RELEVANCE = 0.25
 ALLOWED_FILE_TYPES = {
     ".pdf": "pdf",
     ".docx": "docx",
@@ -37,6 +48,11 @@ _FILE_SELECT = """
         f.sha256,
         f.parse_status,
         f.parse_error,
+        f.embedding_status,
+        f.embedding_error,
+        f.embedding_model,
+        f.embedding_dimension,
+        f.embedded_at,
         f.extracted_char_count,
         f.created_at,
         COUNT(c.id) AS chunk_count
@@ -312,12 +328,18 @@ def replace_document_chunks_data(
                 SET
                     parse_status = %s,
                     parse_error = NULL,
+                    embedding_status = %s,
+                    embedding_error = NULL,
+                    embedding_model = NULL,
+                    embedding_dimension = NULL,
+                    embedded_at = NULL,
                     extracted_char_count = %s,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = %s AND user_id = %s
                 """,
                 (
                     DocumentParseStatus.PARSED.value,
+                    DocumentEmbeddingStatus.NOT_INDEXED.value,
                     extracted_char_count,
                     file_id,
                     user_id,
@@ -328,6 +350,221 @@ def replace_document_chunks_data(
     if fetched is None:
         raise RuntimeError("解析内容已保存，但无法读取文件。")
     return fetched[0]
+
+
+def index_course_file_embeddings_data(
+    *,
+    user_id: int,
+    file_id: str,
+) -> CourseFileRecord:
+    """Create or retry one owned file's vector index without holding a DB transaction."""
+    existing = get_course_file_data(user_id, file_id)
+    if existing is None:
+        raise ValueError("没有找到可建立索引的文件。")
+    if existing.parse_status is not DocumentParseStatus.PARSED:
+        raise ValueError("文件尚未完成解析，无法建立向量索引。")
+    if existing.embedding_status is DocumentEmbeddingStatus.READY:
+        return existing
+
+    try:
+        settings = get_embedding_settings()
+        if not _set_embedding_indexing_data(user_id=user_id, file_id=file_id):
+            current = get_course_file_data(user_id, file_id)
+            if current is None:
+                raise ValueError("没有找到可建立索引的文件。")
+            return current
+        chunks = _get_owned_chunks_for_embedding(user_id=user_id, file_id=file_id)
+        if not chunks:
+            raise EmbeddingServiceError("文件没有可建立索引的文本块。")
+        if len(chunks) > MAX_EMBEDDING_CHUNKS_PER_FILE:
+            raise EmbeddingServiceError(
+                "文件文本块过多，无法在第一版中建立向量索引，请拆分文件后重试。"
+            )
+
+        embeddings = embed_texts(
+            [str(chunk["content"]) for chunk in chunks],
+            settings=settings,
+        )
+        if len(embeddings) != len(chunks):
+            raise EmbeddingServiceError("Embedding 服务返回的向量数量不完整。")
+
+        return _save_file_embeddings_data(
+            user_id=user_id,
+            file_id=file_id,
+            chunks=chunks,
+            embeddings=embeddings,
+            settings=settings,
+        )
+    except (EmbeddingConfigurationError, EmbeddingServiceError) as exc:
+        return _set_embedding_failed_data(
+            user_id=user_id,
+            file_id=file_id,
+            error=str(exc),
+        )
+    except ValueError:
+        raise
+    except Exception:
+        return _set_embedding_failed_data(
+            user_id=user_id,
+            file_id=file_id,
+            error="建立课程资料向量索引失败，请稍后重试。",
+        )
+
+
+def _set_embedding_indexing_data(*, user_id: int, file_id: str) -> bool:
+    with _get_connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                UPDATE course_files
+                SET
+                    embedding_status = %s,
+                    embedding_error = NULL,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE
+                    id = %s
+                    AND user_id = %s
+                    AND parse_status = %s
+                    AND embedding_status IN (%s, %s)
+                """,
+                (
+                    DocumentEmbeddingStatus.INDEXING.value,
+                    file_id,
+                    user_id,
+                    DocumentParseStatus.PARSED.value,
+                    DocumentEmbeddingStatus.NOT_INDEXED.value,
+                    DocumentEmbeddingStatus.FAILED.value,
+                ),
+            )
+            if cursor.rowcount == 1:
+                return True
+
+    current = get_course_file_data(user_id, file_id)
+    if current is None:
+        raise ValueError("没有找到可建立索引的文件。")
+    if current.embedding_status is DocumentEmbeddingStatus.INDEXING:
+        raise ValueError("文件正在建立向量索引，请稍后刷新。")
+    if current.embedding_status is DocumentEmbeddingStatus.READY:
+        return False
+    raise ValueError("文件当前无法建立向量索引。")
+
+
+def _get_owned_chunks_for_embedding(*, user_id: int, file_id: str) -> list[dict[str, Any]]:
+    with _get_connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT dc.id, dc.content
+                FROM document_chunks AS dc
+                JOIN course_files AS cf ON cf.id = dc.file_id
+                WHERE dc.file_id = %s AND cf.user_id = %s AND cf.parse_status = %s
+                ORDER BY dc.chunk_index ASC
+                """,
+                (file_id, user_id, DocumentParseStatus.PARSED.value),
+            )
+            return list(cursor.fetchall())
+
+
+def _save_file_embeddings_data(
+    *,
+    user_id: int,
+    file_id: str,
+    chunks: list[dict[str, Any]],
+    embeddings: list[list[float]],
+    settings: EmbeddingSettings,
+) -> CourseFileRecord:
+    with _get_connection() as connection:
+        with connection.cursor() as cursor:
+            for chunk, embedding in zip(chunks, embeddings, strict=True):
+                cursor.execute(
+                    """
+                    UPDATE document_chunks AS dc
+                    SET embedding = %s::vector
+                    FROM course_files AS cf
+                    WHERE dc.id = %s
+                      AND dc.file_id = %s
+                      AND cf.id = dc.file_id
+                      AND cf.user_id = %s
+                    """,
+                    (
+                        _vector_literal(embedding),
+                        str(chunk["id"]),
+                        file_id,
+                        user_id,
+                    ),
+                )
+                if cursor.rowcount != 1:
+                    raise RuntimeError("写入课程资料向量时发生并发变更。")
+
+            cursor.execute(
+                """
+                UPDATE course_files
+                SET
+                    embedding_status = %s,
+                    embedding_error = NULL,
+                    embedding_model = %s,
+                    embedding_dimension = %s,
+                    embedded_at = CURRENT_TIMESTAMP,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s AND user_id = %s
+                """,
+                (
+                    DocumentEmbeddingStatus.READY.value,
+                    settings.model,
+                    settings.dimension,
+                    file_id,
+                    user_id,
+                ),
+            )
+            if cursor.rowcount != 1:
+                raise RuntimeError("课程资料索引状态更新失败。")
+            fetched = _fetch_file_by_cursor(cursor, user_id, file_id)
+
+    if fetched is None:
+        raise RuntimeError("课程资料向量已写入，但无法读取文件。")
+    return fetched[0]
+
+
+def _set_embedding_failed_data(
+    *,
+    user_id: int,
+    file_id: str,
+    error: str,
+) -> CourseFileRecord:
+    with _get_connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                UPDATE course_files
+                SET
+                    embedding_status = %s,
+                    embedding_error = %s,
+                    embedding_model = NULL,
+                    embedding_dimension = NULL,
+                    embedded_at = NULL,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s AND user_id = %s
+                """,
+                (
+                    DocumentEmbeddingStatus.FAILED.value,
+                    error[:1_000],
+                    file_id,
+                    user_id,
+                ),
+            )
+            if cursor.rowcount != 1:
+                raise ValueError("没有找到可更新的文件。")
+            fetched = _fetch_file_by_cursor(cursor, user_id, file_id)
+
+    if fetched is None:
+        raise RuntimeError("课程资料索引失败状态已更新，但无法读取文件。")
+    return fetched[0]
+
+
+def _vector_literal(values: list[float]) -> str:
+    if len(values) != EMBEDDING_DIMENSION:
+        raise EmbeddingServiceError("Embedding 向量维度无效。")
+    return "[" + ",".join(format(value, ".12g") for value in values) + "]"
 
 
 def list_course_files_data(
@@ -409,28 +646,126 @@ def search_course_documents_data(
     if not normalized_query:
         raise ValueError("检索内容不能为空。")
 
-    terms = [term for term in normalized_query.split(" ") if term][:8]
-    if not terms:
-        raise ValueError("检索内容不能为空。")
-
     with _get_connection() as connection:
         with connection.cursor() as cursor:
             course_id = _resolve_course_id(cursor, user_id, course)
-            like_conditions = " OR ".join(
-                "dc.content ILIKE %s"
-                for _ in terms
+            cursor.execute(
+                """
+                SELECT EXISTS (
+                    SELECT 1
+                    FROM document_chunks AS dc
+                    JOIN course_files AS cf ON cf.id = dc.file_id
+                    WHERE cf.user_id = %s
+                      AND cf.course_id = %s
+                      AND cf.parse_status = %s
+                      AND cf.embedding_status = %s
+                      AND dc.embedding IS NOT NULL
+                ) AS has_embeddings
+                """,
+                (
+                    user_id,
+                    course_id,
+                    DocumentParseStatus.PARSED.value,
+                    DocumentEmbeddingStatus.READY.value,
+                ),
             )
-            parameters: list[Any] = [
-                normalized_query,
-                normalized_query,
-                user_id,
-                course_id,
-                *[f"%{term}%" for term in terms],
-                max(1, min(limit, 12)),
-            ]
+            has_embeddings = bool(cursor.fetchone()["has_embeddings"])
+
+    if has_embeddings:
+        try:
+            query_embedding = embed_texts([normalized_query])[0]
+            vector_results = _search_course_documents_by_vector(
+                user_id=user_id,
+                course_id=course_id,
+                query_embedding=query_embedding,
+                limit=limit,
+            )
+            if vector_results:
+                return vector_results
+        except (EmbeddingConfigurationError, EmbeddingServiceError):
+            # Full-text search keeps existing materials usable if the provider
+            # is unavailable or its configuration is intentionally absent.
+            pass
+
+    return _search_course_documents_by_full_text(
+        user_id=user_id,
+        course_id=course_id,
+        query=normalized_query,
+        limit=limit,
+    )
+
+
+def _search_course_documents_by_vector(
+    *,
+    user_id: int,
+    course_id: str,
+    query_embedding: list[float],
+    limit: int,
+) -> list[DocumentSearchResult]:
+    vector_literal = _vector_literal(query_embedding)
+    bounded_limit = max(1, min(limit, 12))
+    with _get_connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT
+                    dc.id AS chunk_id,
+                    dc.chunk_index,
+                    cf.id AS file_id,
+                    cf.original_filename AS file_name,
+                    dc.page_number AS page,
+                    dc.content,
+                    GREATEST(0.0, 1.0 - (dc.embedding <=> %s::vector)) AS relevance
+                FROM document_chunks AS dc
+                JOIN course_files AS cf
+                    ON cf.id = dc.file_id
+                WHERE
+                    cf.user_id = %s
+                    AND cf.course_id = %s
+                    AND cf.parse_status = 'parsed'
+                    AND cf.embedding_status = 'ready'
+                    AND dc.embedding IS NOT NULL
+                ORDER BY dc.embedding <=> %s::vector, cf.created_at DESC, dc.chunk_index ASC
+                LIMIT %s
+                """,
+                (vector_literal, user_id, course_id, vector_literal, bounded_limit),
+            )
+            rows = cursor.fetchall()
+
+    return [
+        DocumentSearchResult.model_validate(row)
+        for row in rows
+        if float(row["relevance"]) >= MIN_VECTOR_RELEVANCE
+    ]
+
+
+def _search_course_documents_by_full_text(
+    *,
+    user_id: int,
+    course_id: str,
+    query: str,
+    limit: int,
+) -> list[DocumentSearchResult]:
+    terms = [term for term in query.split(" ") if term][:8]
+    if not terms:
+        raise ValueError("检索内容不能为空。")
+
+    like_conditions = " OR ".join("dc.content ILIKE %s" for _ in terms)
+    parameters: list[Any] = [
+        query,
+        query,
+        user_id,
+        course_id,
+        *[f"%{term}%" for term in terms],
+        max(1, min(limit, 12)),
+    ]
+    with _get_connection() as connection:
+        with connection.cursor() as cursor:
             cursor.execute(
                 f"""
                 SELECT
+                    dc.id AS chunk_id,
+                    dc.chunk_index,
                     cf.id AS file_id,
                     cf.original_filename AS file_name,
                     dc.page_number AS page,
@@ -460,7 +795,4 @@ def search_course_documents_data(
             )
             rows = cursor.fetchall()
 
-    return [
-        DocumentSearchResult.model_validate(row)
-        for row in rows
-    ]
+    return [DocumentSearchResult.model_validate(row) for row in rows]
