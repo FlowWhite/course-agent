@@ -14,7 +14,7 @@ from .postgres_data_service import (
     update_task_data,
     update_task_status_data,
 )
-from .models import ToolResponse
+from .models import PlanSource, ToolResponse
 
 
 def success_response(data) -> str:
@@ -48,6 +48,25 @@ def _current_agent_course_id() -> str | None:
         # The legacy command-line Agent remains course-agnostic. The web API
         # always sets this context before invoking a course-bound Agent.
         return None
+
+
+def _record_document_sources(results) -> None:
+    # Lazy import keeps the agent-runtime -> tools dependency acyclic.
+    from .agent_runtime import add_current_agent_document_sources
+
+    add_current_agent_document_sources(
+        [
+            PlanSource(
+                chunk_id=result.chunk_id,
+                chunk_index=result.chunk_index,
+                file_id=result.file_id,
+                file_name=result.file_name,
+                page=result.page,
+                excerpt=result.content[:1_400],
+            )
+            for result in results
+        ]
+    )
 
 
 def _get_scoped_task_or_raise(task_id: str):
@@ -87,6 +106,7 @@ def search_course_documents(
             course=_current_agent_course_id() or course,
             query=query,
         )
+        _record_document_sources(results)
         return success_response(
             [result.model_dump(mode="json") for result in results]
         )

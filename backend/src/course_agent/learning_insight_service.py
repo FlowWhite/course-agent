@@ -34,6 +34,8 @@ def _get_connection():
 def _sources_from_search_results(results) -> list[PlanSource]:
     return [
         PlanSource(
+            chunk_id=result.chunk_id,
+            chunk_index=result.chunk_index,
             file_id=result.file_id,
             file_name=result.file_name,
             page=result.page,

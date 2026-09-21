@@ -100,6 +100,8 @@ def _task_sources_for_assessment(user_id: int, task) -> list[PlanSource]:
         results = []
     return [
         PlanSource(
+            chunk_id=result.chunk_id,
+            chunk_index=result.chunk_index,
             file_id=result.file_id,
             file_name=result.file_name,
             page=result.page,
@@ -277,6 +279,8 @@ def create_task_plan_api(
             results = []
         sources = [
             PlanSource(
+                chunk_id=result.chunk_id,
+                chunk_index=result.chunk_index,
                 file_id=result.file_id,
                 file_name=result.file_name,
                 page=result.page,

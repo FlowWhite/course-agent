@@ -28,6 +28,12 @@ const emit = defineEmits(["close", "send", "update:modelValue"])
       >
         <span class="message-role">{{ message.role === "user" ? "你" : "Agent" }}</span>
         <p>{{ message.content }}</p>
+        <p v-if="message.sources?.length" class="chat-sources">
+          资料来源：
+          <span v-for="source in message.sources" :key="source.chunk_id || `${source.file_id}-${source.page}-${source.chunk_index}`">
+            {{ source.file_name }}{{ source.page ? `（第 ${source.page} 页）` : "" }}
+          </span>
+        </p>
       </div>
       <div v-if="chatSending" class="chat-message message-assistant">
         <span class="message-role">Agent</span>

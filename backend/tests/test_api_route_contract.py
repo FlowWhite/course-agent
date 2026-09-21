@@ -15,6 +15,7 @@ class ApiRouteContractTests(unittest.TestCase):
             ("POST", "/api/v1/auth/register"),
             ("GET", "/api/v1/files"),
             ("POST", "/api/v1/files"),
+            ("POST", "/api/v1/files/test-file/index"),
             ("GET", "/api/v1/files/test-file"),
             ("DELETE", "/api/v1/files/test-file"),
             ("GET", "/api/v1/courses"),
